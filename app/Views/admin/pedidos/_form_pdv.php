@@ -187,6 +187,7 @@
                                     <option value="dinheiro">Dinheiro</option>
                                     <option value="pix">PIX (QR Code)</option>
                                     <option value="cartao">Cartão</option>
+                                    <option value="fiado">Fiado / A Prazo</option>
                                 </select>
                             </div>
                             

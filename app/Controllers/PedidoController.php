@@ -337,10 +337,73 @@ class PedidoController {
     }
 
     // 8. OUTRAS FUNÇÕES
-    public function mudarStatus() {
-        $this->verificarLogin(); ob_clean();
-        (new Pedido())->atualizarStatus($_POST['id'], $_POST['status']);
-        echo json_encode(['ok' => true]); exit;
+   public function mudarStatus() {
+        $this->verificarLogin(); 
+        
+        // Limpa qualquer saída anterior para garantir JSON limpo
+        while (ob_get_level()) { ob_end_clean(); }
+        header('Content-Type: application/json');
+        
+        try {
+            $id = $_POST['id'] ?? 0;
+            $novoStatus = $_POST['status'] ?? '';
+            $empresaId = $_SESSION['empresa_id'];
+
+            if (!$id || !$novoStatus) {
+                throw new \Exception("Dados inválidos.");
+            }
+            
+            // 1. Atualiza o status do pedido no Banco
+            (new Pedido())->atualizarStatus($id, $novoStatus);
+
+            // 2. REGRA FINANCEIRA: Só lança se for FINALIZADO
+            if ($novoStatus == 'finalizado') {
+                $db = Database::connect();
+                
+                // Busca dados do pedido para lançar a conta
+                $stmt = $db->prepare("SELECT * FROM pedidos WHERE id = ? AND empresa_id = ?");
+                $stmt->execute([$id, $empresaId]);
+                $pedido = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+                if ($pedido) {
+                    // Verifica se já existe conta lançada para este pedido (Evita Duplicação)
+                    $stmtCheck = $db->prepare("SELECT id FROM contas_receber WHERE pedido_id = ?");
+                    $stmtCheck->execute([$id]);
+                    
+                    if ($stmtCheck->rowCount() == 0) {
+                        // REGRA DO FIADO:
+                        // Se for 'fiado', status é 'pendente'. Outros meios entram como 'pago'.
+                        $statusConta = ($pedido['forma_pagamento'] == 'fiado') ? 'pendente' : 'pago';
+                        
+                        // Data de vencimento (Hoje)
+                        $dataVencimento = date('Y-m-d'); 
+
+                        $sqlFin = "INSERT INTO contas_receber 
+                            (empresa_id, pedido_id, cliente_id, cliente_nome, valor, data_vencimento, status, forma_pagamento, categoria, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Venda', NOW())";
+                        
+                        $stmtFin = $db->prepare($sqlFin);
+                        $stmtFin->execute([
+                            $pedido['empresa_id'],
+                            $pedido['id'],
+                            $pedido['cliente_id'],
+                            $pedido['cliente_nome'],
+                            $pedido['valor_total'],
+                            $dataVencimento,
+                            $statusConta,
+                            $pedido['forma_pagamento']
+                        ]);
+                    }
+                }
+            }
+
+            echo json_encode(['ok' => true]); 
+
+        } catch (\Exception $e) {
+            // Em caso de erro, retorna JSON explicativo
+            echo json_encode(['ok' => false, 'erro' => $e->getMessage()]);
+        }
+        exit;
     }
 
     public function excluir() {
