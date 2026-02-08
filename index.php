@@ -1,5 +1,6 @@
 <?php
-// Redireciona direto para o Admin
-header("Location: https://clicoupediu.app.br/public/admin");
+// Arquivo: /home3/erwise19/clicoupediu/index.php
+
+// Redireciona para a pasta pública onde está o sistema
+header("Location: public/admin");
 exit;
-?>
