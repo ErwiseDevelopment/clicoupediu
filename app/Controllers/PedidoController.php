@@ -11,66 +11,108 @@ use App\Models\Cardapio;
 class PedidoController {
 
     // 1. TELA PRINCIPAL (Monitor KDS)
+  // 1. TELA PRINCIPAL (Monitor KDS + PDV)
     public function index() {
         $this->verificarLogin();
         $empresaId = $_SESSION['empresa_id'];
         $dataFiltro = $_GET['data'] ?? date('Y-m-d');
 
-        $db = Database::connect();
+        $db = \App\Core\Database::connect();
         
-        // Busca dados básicos da empresa para o Header
+        // --- DADOS DA EMPRESA (CABEÇALHO) ---
         $stmtEmp = $db->prepare("SELECT chave_pix, nome_fantasia, endereco_completo FROM empresas WHERE id = ? LIMIT 1");
         $stmtEmp->execute([$empresaId]);
         $empresaDados = $stmtEmp->fetch(\PDO::FETCH_ASSOC);
 
         $chavePixLoja = $empresaDados['chave_pix'] ?? '';
-        
-        // Usa o método privado auxiliar (mantendo sua lógica original)
         $nomeLojaPix  = $this->limparStringPix($empresaDados['nome_fantasia'] ?? 'LOJA', 25);
-
+        
         $cidadeLojaPix = 'CIDADE'; 
         if (!empty($empresaDados['endereco_completo'])) {
             $partes = explode('-', $empresaDados['endereco_completo']);
             $ultimaParte = end($partes); 
-            if (strlen(trim($ultimaParte)) <= 2 && count($partes) > 1) {
-                $cidadeProvavel = prev($partes);
-            } else {
-                $cidadeProvavel = $ultimaParte;
-            }
-            $cidadeLojaPix = $this->limparStringPix($cidadeProvavel, 15);
+            $cidadeLojaPix = $this->limparStringPix(count($partes) > 1 && strlen(trim($ultimaParte)) <= 2 ? prev($partes) : $ultimaParte, 15);
         }
 
-        // Listagens de Pedidos
+        // --- LISTAGEM DE PEDIDOS (KANBAN) ---
         $model = new Pedido();
         $analise = $model->listarPorStatus($empresaId, 'analise', $dataFiltro);
         $preparo = $model->listarPorStatus($empresaId, 'preparo', $dataFiltro);
         $entrega = $model->listarPorStatus($empresaId, 'entrega', $dataFiltro);
         $finalizados = $model->listarPorStatus($empresaId, 'finalizado', $dataFiltro);
 
-        // Busca Produtos para o PDV (Modal)
+        // --- BUSCA PRODUTOS E COMBOS ---
         $prodModel = new Produto();
         $promoModel = new Promocao();
         
         $todosProdutos = $prodModel->listar($empresaId);
         $todosCombos = $promoModel->listarCombos($empresaId);
         
-        // Marca quem tem adicionais para o JS saber quando chamar a API
+        // Verifica quais produtos têm adicionais (para o modal)
         $stmtTemAdd = $db->prepare("SELECT DISTINCT produto_id FROM produto_complementos WHERE ativo = 1");
         $stmtTemAdd->execute();
         $idsComAdicionais = $stmtTemAdd->fetchAll(\PDO::FETCH_COLUMN);
 
         $produtosPDV = [];
 
+        // 1. Processa Produtos Simples (Estoque Direto)
+        $stmtEst = $db->prepare("SELECT quantidade FROM estoque_filial WHERE produto_id = ? LIMIT 1");
+
         foreach($todosProdutos as $p) {
             $p['tipo_item'] = 'produto';
             $p['tem_adicionais'] = in_array($p['id'], $idsComAdicionais) ? 1 : 0;
+            
+            $stmtEst->execute([$p['id']]);
+            $est = $stmtEst->fetch(\PDO::FETCH_ASSOC);
+            $p['estoque_atual'] = ($est) ? $est['quantidade'] : 0;
+
             $produtosPDV[] = $p;
         }
+
+        // 2. Processa Combos (CÁLCULO DO ESTOQUE VIRTUAL)
+        // Prepara query para buscar ingredientes do combo e seus estoques
+        $stmtIngredientes = $db->prepare("
+            SELECT pc.quantidade as qtd_necessaria, 
+                   COALESCE(ef.quantidade, 0) as estoque_real
+            FROM produto_combos pc
+            LEFT JOIN estoque_filial ef ON pc.item_id = ef.produto_id
+            WHERE pc.produto_pai_id = ?
+        ");
 
         foreach($todosCombos as $c) {
             $c['tipo_item'] = 'combo';
             $c['tem_adicionais'] = 0; 
             if(!isset($c['categoria_id'])) $c['categoria_id'] = 0;
+            
+            // >>> LÓGICA DE ESTOQUE DO COMBO <<<
+            $stmtIngredientes->execute([$c['id']]);
+            $ingredientes = $stmtIngredientes->fetchAll(\PDO::FETCH_ASSOC);
+
+            if (count($ingredientes) == 0) {
+                // Se o combo não tem receita cadastrada, assumimos estoque livre (999)
+                // ou bloqueado (0), dependendo da sua regra. Vou deixar livre.
+                $c['estoque_atual'] = 999;
+            } else {
+                // Descobre qual ingrediente limita o combo (Gargalo)
+                $maxCombosPossiveis = 99999;
+                
+                foreach($ingredientes as $ing) {
+                    $qtdNecessaria = intval($ing['qtd_necessaria']);
+                    if ($qtdNecessaria <= 0) continue; // Evita divisão por zero
+
+                    $estoqueReal = intval($ing['estoque_real']);
+                    
+                    // Quantos combos dá pra fazer com este ingrediente específico?
+                    $possivelComEsteItem = floor($estoqueReal / $qtdNecessaria);
+
+                    if ($possivelComEsteItem < $maxCombosPossiveis) {
+                        $maxCombosPossiveis = $possivelComEsteItem;
+                    }
+                }
+                $c['estoque_atual'] = $maxCombosPossiveis;
+            }
+            // ----------------------------------
+
             $produtosPDV[] = $c;
         }
 
@@ -238,41 +280,59 @@ class PedidoController {
 
     // 5. OBTER DADOS PARA EDIÇÃO
     public function getDadosPedido() {
-        $this->verificarLogin(); ob_clean();
-        $id = $_GET['id'];
-        $db = Database::connect();
+        $this->verificarLogin(); 
         
-        $stmt = $db->prepare("SELECT * FROM pedidos WHERE id = ? AND empresa_id = ?");
-        $stmt->execute([$id, $_SESSION['empresa_id']]);
-        $pedido = $stmt->fetch(\PDO::FETCH_ASSOC);
+        // Desativa erros na tela para não quebrar o JSON
+        error_reporting(0); 
+        ini_set('display_errors', 0);
+        while (ob_get_level()) { ob_end_clean(); }
         
-        $stmtI = $db->prepare("SELECT pi.*, p.nome as p_nome, p.tem_adicionais 
-                               FROM pedido_itens pi 
-                               LEFT JOIN produtos p ON pi.produto_id = p.id 
-                               WHERE pi.pedido_id = ?");
-        $stmtI->execute([$id]);
+        header('Content-Type: application/json; charset=utf-8');
         
-        $itensCarrinho = [];
-        foreach($stmtI->fetchAll(\PDO::FETCH_ASSOC) as $i) {
-            // Tenta recuperar adicionais salvos (estrutura básica)
-            $stmtAdd = $db->prepare("SELECT id, nome, preco FROM pedido_item_complementos WHERE pedido_item_id = ?");
-            $stmtAdd->execute([$i['id']]); 
-            $adicionais = $stmtAdd->fetchAll(\PDO::FETCH_ASSOC);
+        try {
+            $id = $_GET['id'] ?? 0;
+            $db = Database::connect();
+            
+            $stmt = $db->prepare("SELECT * FROM pedidos WHERE id = ? AND empresa_id = ?");
+            $stmt->execute([$id, $_SESSION['empresa_id']]);
+            $pedido = $stmt->fetch(\PDO::FETCH_ASSOC);
+            
+            if(!$pedido) throw new \Exception("Pedido não encontrado");
 
-            $itensCarrinho[] = [
-                'id' => $i['produto_id'],
-                'name' => $i['p_nome'],
-                'preco' => floatval($i['preco_unitario']),
-                'qtd' => intval($i['quantidade']),
-                'observacao' => $i['observacao_item'],
-                'estoque' => 999,
-                'tem_adicionais' => $i['tem_adicionais'],
-                'adicionais' => $adicionais
-            ];
+            // LEFT JOIN garante que traz o item mesmo se produto foi deletado
+            $stmtI = $db->prepare("SELECT pi.*, p.nome as p_nome, p.tem_adicionais 
+                                   FROM pedido_itens pi 
+                                   LEFT JOIN produtos p ON pi.produto_id = p.id 
+                                   WHERE pi.pedido_id = ?");
+            $stmtI->execute([$id]);
+            
+            $itensCarrinho = [];
+            foreach($stmtI->fetchAll(\PDO::FETCH_ASSOC) as $i) {
+                // Busca Adicionais com try/catch para não quebrar se a tabela faltar
+                $adicionais = [];
+                try {
+                    $stmtAdd = $db->prepare("SELECT id, nome, preco FROM pedido_item_complementos WHERE pedido_item_id = ?");
+                    $stmtAdd->execute([$i['id']]); 
+                    $adicionais = $stmtAdd->fetchAll(\PDO::FETCH_ASSOC);
+                } catch (\Throwable $t) { $adicionais = []; }
+
+                $itensCarrinho[] = [
+                    'id' => $i['produto_id'],
+                    'name' => $i['p_nome'] ?? 'Produto Excluído', // Fallback se nome for null
+                    'preco' => floatval($i['preco_unitario']),
+                    'qtd' => intval($i['quantidade']),
+                    'observacao' => $i['observacao_item'] ?? '',
+                    'estoque' => 999,
+                    'tem_adicionais' => $i['tem_adicionais'] ?? 0,
+                    'adicionais' => $adicionais
+                ];
+            }
+
+            echo json_encode(['pedido' => $pedido, 'itensCarrinho' => $itensCarrinho]); 
+
+        } catch (\Throwable $e) {
+            echo json_encode(['erro' => $e->getMessage()]);
         }
-
-        header('Content-Type: application/json');
-        echo json_encode(['pedido' => $pedido, 'itensCarrinho' => $itensCarrinho]); 
         exit;
     }
 
@@ -340,7 +400,7 @@ class PedidoController {
    public function mudarStatus() {
         $this->verificarLogin(); 
         
-        // Limpa qualquer saída anterior para garantir JSON limpo
+        // Limpa buffer para evitar erros no JSON
         while (ob_get_level()) { ob_end_clean(); }
         header('Content-Type: application/json');
         
@@ -349,33 +409,28 @@ class PedidoController {
             $novoStatus = $_POST['status'] ?? '';
             $empresaId = $_SESSION['empresa_id'];
 
-            if (!$id || !$novoStatus) {
-                throw new \Exception("Dados inválidos.");
-            }
+            if (!$id || !$novoStatus) throw new \Exception("Dados inválidos.");
             
-            // 1. Atualiza o status do pedido no Banco
+            // 1. Atualiza o status
             (new Pedido())->atualizarStatus($id, $novoStatus);
 
-            // 2. REGRA FINANCEIRA: Só lança se for FINALIZADO
+            // 2. LÓGICA FINANCEIRA: Só lança se for FINALIZADO
             if ($novoStatus == 'finalizado') {
                 $db = Database::connect();
                 
-                // Busca dados do pedido para lançar a conta
+                // Busca dados do pedido
                 $stmt = $db->prepare("SELECT * FROM pedidos WHERE id = ? AND empresa_id = ?");
                 $stmt->execute([$id, $empresaId]);
                 $pedido = $stmt->fetch(\PDO::FETCH_ASSOC);
 
                 if ($pedido) {
-                    // Verifica se já existe conta lançada para este pedido (Evita Duplicação)
+                    // Verifica se já existe conta para não duplicar
                     $stmtCheck = $db->prepare("SELECT id FROM contas_receber WHERE pedido_id = ?");
                     $stmtCheck->execute([$id]);
                     
                     if ($stmtCheck->rowCount() == 0) {
-                        // REGRA DO FIADO:
-                        // Se for 'fiado', status é 'pendente'. Outros meios entram como 'pago'.
+                        // SE FOR FIADO -> PENDENTE. OUTROS -> PAGO.
                         $statusConta = ($pedido['forma_pagamento'] == 'fiado') ? 'pendente' : 'pago';
-                        
-                        // Data de vencimento (Hoje)
                         $dataVencimento = date('Y-m-d'); 
 
                         $sqlFin = "INSERT INTO contas_receber 
@@ -400,7 +455,6 @@ class PedidoController {
             echo json_encode(['ok' => true]); 
 
         } catch (\Exception $e) {
-            // Em caso de erro, retorna JSON explicativo
             echo json_encode(['ok' => false, 'erro' => $e->getMessage()]);
         }
         exit;
@@ -422,17 +476,39 @@ class PedidoController {
     }
     
     public function getItensPedido() {
-        $this->verificarLogin(); if(ob_get_contents()) ob_clean(); 
-        $id = $_GET['id'] ?? 0; 
-        $db = Database::connect(); 
-        $stmtP = $db->prepare("SELECT * FROM pedidos WHERE id = ?"); 
-        $stmtP->execute([$id]); 
-        $pedido = $stmtP->fetch(\PDO::FETCH_ASSOC); 
-        $stmtI = $db->prepare("SELECT i.*, COALESCE(p.nome, 'Item Excluído') as produto_nome FROM pedido_itens i LEFT JOIN produtos p ON i.produto_id = p.id WHERE i.pedido_id = ?"); 
-        $stmtI->execute([$id]); 
-        $itens = $stmtI->fetchAll(\PDO::FETCH_ASSOC); 
-        header('Content-Type: application/json'); 
-        echo json_encode(['pedido' => $pedido, 'itens' => $itens]); exit; 
+        $this->verificarLogin(); 
+        
+        // --- CORREÇÃO DO ERRO DE BUFFER ---
+        // Em vez de if(ob_get_contents()) ob_clean(); que gera erro se estiver vazio,
+        // usamos o while que só limpa SE existir algo.
+        while (ob_get_level()) { ob_end_clean(); }
+        
+        header('Content-Type: application/json; charset=utf-8');
+        
+        try {
+            $id = $_GET['id'] ?? 0; 
+            
+            $db = \App\Core\Database::connect(); 
+            
+            // Busca o Pedido
+            $stmtP = $db->prepare("SELECT * FROM pedidos WHERE id = ?"); 
+            $stmtP->execute([$id]); 
+            $pedido = $stmtP->fetch(\PDO::FETCH_ASSOC); 
+            
+            // Busca os Itens
+            $stmtI = $db->prepare("SELECT i.*, COALESCE(p.nome, 'Item Excluído') as produto_nome 
+                                   FROM pedido_itens i 
+                                   LEFT JOIN produtos p ON i.produto_id = p.id 
+                                   WHERE i.pedido_id = ?"); 
+            $stmtI->execute([$id]); 
+            $itens = $stmtI->fetchAll(\PDO::FETCH_ASSOC); 
+            
+            echo json_encode(['pedido' => $pedido, 'itens' => $itens]); 
+
+        } catch (\Throwable $e) {
+            echo json_encode(['erro' => $e->getMessage()]);
+        }
+        exit; 
     }
     
     public function vincularMotoboyAjax() {

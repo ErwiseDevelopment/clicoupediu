@@ -103,6 +103,12 @@
 
                         <div class="flex flex-col flex-1 justify-between">
                             <h4 class="font-bold text-gray-700 mb-1 leading-tight line-clamp-2 text-xs md:text-sm"><?php echo $nomeProd; ?></h4>
+                            
+                            <?php if($controlaEstoque == 1): ?>
+                                <div class="text-[10px] font-bold px-1.5 py-0.5 rounded inline-block w-max mb-1 <?php echo $estoque > 0 ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'; ?>">
+                                    Estoque: <?php echo $estoque; ?>
+                                </div>
+                            <?php endif; ?>
                             <div class="flex justify-between items-center mt-1">
                                 <span class="text-green-600 font-black text-sm">R$ <?php echo number_format($precoFinal, 2, ',', '.'); ?></span>
                                 <div class="bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow"><i class="fas fa-plus"></i></div>
@@ -562,6 +568,23 @@
         if(window.innerWidth < 768) mudarAba('carrinho');
     }
 
+    function alterarPrecoItem(index, novoValor) {
+        // Converte "27,50" para 27.50
+        let v = parseFloat(novoValor.replace(/\./g, '').replace(',', '.'));
+        
+        if (isNaN(v) || v < 0) {
+            // Se digitou errado, volta o preço original
+            renderCarrinho();
+            return;
+        }
+        
+        // Atualiza o preço no array do carrinho
+        carrinho[index].preco = v;
+        
+        // Redesenha o carrinho para atualizar os totais
+        renderCarrinho();
+    }
+
     function renderCarrinho() {
         let html = '';
         let total = 0;
@@ -593,8 +616,17 @@
                 <div class="flex-1 pr-2">
                     <div class="font-bold text-gray-700 line-clamp-2">${item.name}</div>
                     ${detalhesHtml} 
-                    <div class="text-gray-400 mt-1 font-medium">R$ ${item.preco.toFixed(2).replace('.',',')} un</div>
-                </div>
+                    
+                    <div class="flex items-center mt-1 gap-1">
+                        <span class="text-gray-400 text-[10px]">R$</span>
+                        <input type="text" 
+                               value="${item.preco.toFixed(2).replace('.',',')}" 
+                               class="w-16 bg-transparent border-b border-gray-300 text-gray-600 font-bold text-xs focus:border-blue-500 focus:text-blue-600 outline-none transition"
+                               onkeyup="mascaraMoeda(this)" 
+                               onblur="alterarPrecoItem(${idx}, this.value)">
+                        <span class="text-gray-400 text-[10px]">un</span>
+                    </div>
+                    </div>
                 <div class="flex flex-col items-end gap-1">
                     <div class="font-bold text-gray-800">R$ ${sub.toFixed(2).replace('.', ',')}</div>
                     <div class="flex items-center gap-1 bg-white border border-gray-200 rounded shadow-sm">
