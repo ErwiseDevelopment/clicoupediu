@@ -1,6 +1,21 @@
 <?php 
+// 1. LÓGICA DE FILTRO AUTOMÁTICO (MÊS ATUAL)
+// Se não houver datas na URL, forçamos o redirecionamento para o mês corrente.
+if (!isset($_GET['data_inicio']) || !isset($_GET['data_fim'])) {
+    $inicioMes = date('Y-m-01'); // Primeiro dia do mês atual
+    $fimMes    = date('Y-m-t');  // Último dia do mês atual (28, 30 ou 31)
+
+    // Recarrega a página com os parâmetros na URL
+    header("Location: ?data_inicio={$inicioMes}&data_fim={$fimMes}");
+    exit;
+}
+
 $titulo = "Dashboard Financeiro | MK Gestor";
 require __DIR__ . '/../partials/header.php'; 
+
+// Garante que as variáveis de exibição usem o que está na URL (caso o Controller não as tenha passado)
+if (!isset($dataInicio)) $dataInicio = $_GET['data_inicio'];
+if (!isset($dataFim))    $dataFim    = $_GET['data_fim'];
 ?>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
