@@ -5,13 +5,12 @@ use PDO;
 
 class Pedido {
 
-public function listarPorStatus($empresaId, $status, $data = null) {
+    public function listarPorStatus($empresaId, $status, $data = null) {
         $db = Database::connect();
         
         $sql = "SELECT * FROM pedidos WHERE empresa_id = ? AND status = ?";
         $params = [$empresaId, $status];
 
-        // Se uma data for passada, filtra pelo dia de criação
         if ($data) {
             $sql .= " AND DATE(created_at) = ?";
             $params[] = $data;
@@ -23,7 +22,8 @@ public function listarPorStatus($empresaId, $status, $data = null) {
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-public function buscarPorTelefone($empresaId, $telefone) {
+
+    public function buscarPorTelefone($empresaId, $telefone) {
         $db = Database::connect();
         $telefone = preg_replace('/[^0-9]/', '', $telefone);
 
@@ -39,8 +39,6 @@ public function buscarPorTelefone($empresaId, $telefone) {
 
     public function listarHistorico($empresaId, $dataInicio, $dataFim) {
         $db = Database::connect();
-        
-        // Ajusta as datas para pegar o dia inteiro (00:00:00 até 23:59:59)
         $inicio = $dataInicio . ' 00:00:00';
         $fim    = $dataFim . ' 23:59:59';
 
@@ -51,41 +49,41 @@ public function buscarPorTelefone($empresaId, $telefone) {
                 ORDER BY created_at DESC";
         
         $stmt = $db->prepare($sql);
-        $stmt->execute([
-            'id' => $empresaId,
-            'inicio' => $inicio,
-            'fim' => $fim
-        ]);
-        
+        $stmt->execute(['id' => $empresaId, 'inicio' => $inicio, 'fim' => $fim]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-
-   public function criar($dados, $itens) {
+    // --- CRIAÇÃO DO PEDIDO (CORRIGIDA) ---
+    public function criar($dados, $itens) {
         $db = Database::connect();
         
         try {
             $db->beginTransaction();
 
-            // 1. Gerencia Cliente (Cria ou Atualiza)
+            // 1. Gerencia Cliente
             $clienteId = $this->gerenciarCliente($db, $dados);
 
-            // 2. Insere Pedido
+            // 2. Insere Pedido (AGORA COM OS CAMPOS DE MESA)
             $sqlPedido = "INSERT INTO pedidos (
                 empresa_id, cliente_id, cliente_nome, cliente_telefone, 
                 tipo_entrega, endereco_entrega, numero, bairro, complemento,
                 taxa_entrega, valor_produtos, valor_total, 
                 forma_pagamento, troco_para, lat_entrega, lng_entrega,
-                status, created_at
+                status, created_at, sessao_id, participante_id
             ) VALUES (
                 :eid, :cid, :nome, :tel,
                 :tipo, :end, :num, :bairro, :comp,
                 :taxa, :vprod, :vtotal,
                 :pgto, :troco, :lat, :lng,
-                'analise', NOW()
+                'analise', NOW(), :sessao, :participante
             )";
 
             $stmt = $db->prepare($sqlPedido);
+            
+            // Define valores nulos se não existirem
+            $sessaoId = !empty($dados['sessao_id']) ? $dados['sessao_id'] : null;
+            $participanteId = !empty($dados['participante_id']) ? $dados['participante_id'] : null;
+
             $stmt->execute([
                 'eid' => $dados['empresa_id'],
                 'cid' => $clienteId,
@@ -100,15 +98,23 @@ public function buscarPorTelefone($empresaId, $telefone) {
                 'vprod' => $dados['valor_produtos'],
                 'vtotal' => $dados['valor_total'],
                 'pgto' => $dados['forma_pagamento'],
-                'troco' => $dados['troco'] ?? 0.00, // Novo campo
+                'troco' => $dados['troco'] ?? 0.00,
                 'lat' => $dados['lat_entrega'],
-                'lng' => $dados['lng_entrega']
+                'lng' => $dados['lng_entrega'],
+                'sessao' => $sessaoId,           // <--- AQUI
+                'participante' => $participanteId // <--- AQUI
             ]);
 
             $pedidoId = $db->lastInsertId();
 
-            // 3. Insere Itens e Complementos
+            // 3. Insere Itens
             $this->inserirItens($db, $pedidoId, $itens, $dados['empresa_id']);
+
+            // 4. Se for Mesa, atualiza o total da sessão para aparecer no topo da tela do garçom
+            if ($sessaoId) {
+                $db->prepare("UPDATE mesa_sessoes SET total_consumido = total_consumido + ? WHERE id = ?")
+                   ->execute([$dados['valor_total'], $sessaoId]);
+            }
 
             $db->commit();
             return $pedidoId;
@@ -124,9 +130,7 @@ public function buscarPorTelefone($empresaId, $telefone) {
         try {
             $db->beginTransaction();
             
-            // Devolve estoque antes de apagar (agora devolve ingredientes se for combo)
             $this->estornarEstoque($db, $id, $dados['empresa_id']);
-            
             $db->prepare("DELETE FROM pedido_itens WHERE pedido_id = ?")->execute([$id]);
 
             $clienteId = $this->gerenciarCliente($db, $dados);
@@ -145,8 +149,8 @@ public function buscarPorTelefone($empresaId, $telefone) {
                 'cid' => $clienteId, 'nome' => $dados['cliente_nome'], 'tel' => $dados['cliente_telefone'],
                 'tipo' => $dados['tipo_entrega'], 'end' => $dados['endereco'], 'num' => $dados['numero'],
                 'bairro' => $dados['bairro'], 'comp' => $dados['complemento'], 'taxa' => $dados['taxa_entrega'],
-                'desc' => $dados['desconto'], 'vprod' => $dados['valor_produtos'], 'vtotal' => $dados['valor_total'],
-                'pgto' => $dados['forma_pagamento'], 'troco' => $dados['troco_para'],
+                'desc' => $dados['desconto'] ?? 0, 'vprod' => $dados['valor_produtos'], 'vtotal' => $dados['valor_total'],
+                'pgto' => $dados['forma_pagamento'], 'troco' => $dados['troco_para'] ?? 0,
                 'lat' => $dados['lat_entrega'], 'lng' => $dados['lng_entrega'],
                 'id' => $id
             ]);
@@ -159,7 +163,7 @@ public function buscarPorTelefone($empresaId, $telefone) {
         }
     }
 
-   private function gerenciarCliente($db, $dados) {
+    private function gerenciarCliente($db, $dados) {
         $tel = $dados['cliente_telefone'];
         if (empty($tel) || strlen($tel) < 8) return null;
 
@@ -178,22 +182,17 @@ public function buscarPorTelefone($empresaId, $telefone) {
         }
     }
 
-    // --- FUNÇÃO DE INSERIR COM BAIXA INTELIGENTE DE ESTOQUE ---
     private function inserirItens($db, $pedidoId, $itens, $empresaId) {
         $stmtItem = $db->prepare("INSERT INTO pedido_itens (pedido_id, produto_id, quantidade, preco_unitario, total, observacao_item) VALUES (?, ?, ?, ?, ?, ?)");
-        
-        // Query para salvar complementos na nova tabela
         $stmtAdd = $db->prepare("INSERT INTO pedido_item_complementos (pedido_item_id, complemento_id, nome, preco) VALUES (?, ?, ?, ?)");
-
-        // Queries de estoque
+        
         $stmtIngredientes = $db->prepare("SELECT item_id, quantidade FROM produto_combos WHERE produto_pai_id = ?");
         $stmtEst = $db->prepare("UPDATE estoque_filial SET quantidade = quantidade - ? WHERE produto_id = ? AND filial_id = ?");
 
         foreach ($itens as $item) {
             $obs = $item['observacao'] ?? null;
-            $precoUnitario = $item['preco']; // Preço unitário já com adicionais (conforme enviado pelo front)
+            $precoUnitario = $item['preco']; 
             
-            // 1. Salva Item
             $stmtItem->execute([
                 $pedidoId, 
                 $item['id'], 
@@ -204,23 +203,14 @@ public function buscarPorTelefone($empresaId, $telefone) {
             ]);
             $itemId = $db->lastInsertId();
 
-            // 2. Salva Complementos (Se houver e se a tabela existir)
             if (!empty($item['adicionais']) && is_array($item['adicionais'])) {
                 foreach ($item['adicionais'] as $add) {
                     try {
-                        $stmtAdd->execute([
-                            $itemId,
-                            $add['id'], // ID do opcional
-                            $add['nome'],
-                            $add['preco']
-                        ]);
-                    } catch (\Exception $e) {
-                        // Ignora erro se tabela de complementos não existir ainda
-                    }
+                        $stmtAdd->execute([$itemId, $add['id'], $add['nome'], $add['preco']]);
+                    } catch (\Exception $e) {}
                 }
             }
 
-            // 3. Baixa Estoque (Combo ou Simples)
             $stmtIngredientes->execute([$item['id']]);
             $ingredientes = $stmtIngredientes->fetchAll(PDO::FETCH_ASSOC);
 
@@ -235,9 +225,7 @@ public function buscarPorTelefone($empresaId, $telefone) {
         }
     }
 
-    // --- FUNÇÃO DE ESTORNO COM DEVOLUÇÃO INTELIGENTE DE ESTOQUE ---
     private function estornarEstoque($db, $pedidoId, $empresaId) {
-        // Pega os itens do pedido que será excluído/editado
         $stmt = $db->prepare("SELECT produto_id, quantidade FROM pedido_itens WHERE pedido_id = ?");
         $stmt->execute([$pedidoId]);
         $itens = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -246,18 +234,15 @@ public function buscarPorTelefone($empresaId, $telefone) {
         $stmtDevolve = $db->prepare("UPDATE estoque_filial SET quantidade = quantidade + ? WHERE produto_id = ? AND filial_id = ?");
 
         foreach($itens as $i) {
-            // Verifica se o item devolvido é um combo
             $stmtIngredientes->execute([$i['produto_id']]);
             $ingredientes = $stmtIngredientes->fetchAll(PDO::FETCH_ASSOC);
 
             if (count($ingredientes) > 0) {
-                // DEVOLVE INGREDIENTES DO COMBO
                 foreach ($ingredientes as $ing) {
                     $qtdDevolve = $i['quantidade'] * $ing['quantidade'];
                     $stmtDevolve->execute([$qtdDevolve, $ing['item_id'], $empresaId]);
                 }
             } else {
-                // DEVOLVE PRODUTO SIMPLES
                 $stmtDevolve->execute([$i['quantidade'], $i['produto_id'], $empresaId]);
             }
         }
@@ -270,7 +255,6 @@ public function buscarPorTelefone($empresaId, $telefone) {
     
     public function excluir($id) {
          $db = Database::connect();
-         // Estorna estoque corretamente antes de excluir
          $this->estornarEstoque($db, $id, $_SESSION['empresa_id']);
          $db->prepare("DELETE FROM pedido_itens WHERE pedido_id = ?")->execute([$id]);
          $db->prepare("DELETE FROM pedidos WHERE id = ?")->execute([$id]);

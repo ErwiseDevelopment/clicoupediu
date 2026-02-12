@@ -94,6 +94,18 @@ $googleApiKey = "AIzaSyAGH7ygV2EqebroAxOpfIElfgh1MIEVg-U";
                             <label class="block text-sm font-bold text-gray-700 mb-1">Pedido Mínimo (R$)</label>
                             <input type="text" name="pedido_minimo" value="<?php echo number_format($config['pedido_minimo'] ?? 0, 2, ',', '.'); ?>" class="w-full border border-gray-300 rounded-lg p-2 text-sm" onkeyup="mascaraMoeda(this)">
                         </div>
+                        <div class="md:col-span-2 bg-purple-50 p-3 rounded-lg border border-purple-100 flex items-center justify-between">
+                            <div>
+                                <label class="block text-sm font-bold text-purple-800 mb-1">
+                                    <i class="fas fa-chair mr-1"></i> Ativar Serviço de Salão (Mesas)
+                                </label>
+                                <p class="text-xs text-purple-600">Habilita gestão de mesas, QR Code e comandos internos.</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="servico_salao" value="1" class="sr-only peer" <?php echo ($config['servico_salao'] ?? 0) == 1 ? 'checked' : ''; ?>>
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                            </label>
+                        </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-bold text-gray-700 mb-1">Chave PIX (Para recebimento)</label>
                             <input type="text" name="chave_pix" value="<?php echo $config['chave_pix'] ?? ''; ?>" 

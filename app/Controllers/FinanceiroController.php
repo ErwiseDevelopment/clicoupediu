@@ -109,7 +109,7 @@ class FinanceiroController {
         $this->verificarLogin();
         $id = $_POST['id'];
         $db = Database::connect();
-        $db->prepare("UPDATE contas_receber SET status = 'pago', updated_at = NOW() WHERE id = ? AND empresa_id = ?")
+        $db->prepare("UPDATE contas_receber SET status = 'pago' WHERE id = ? AND empresa_id = ?")
            ->execute([$id, $_SESSION['empresa_id']]);
         
         header('Content-Type: application/json');

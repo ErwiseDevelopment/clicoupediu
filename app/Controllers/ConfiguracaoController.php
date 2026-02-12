@@ -67,32 +67,33 @@ class ConfiguracaoController {
 
         // --- ETAPA 1: Salvar configurações da filial (SEM O PIX) ---
         // Removemos 'chave_pix = :pix' desta query pois a coluna não existe nesta tabela
-        $sql = "UPDATE configuracoes_filial SET 
-                logo_url = :logo,
-                banner_capa_url = :capa,
-                cor_primaria = :cor,
-                tempo_medio_entrega = :tempo,
-                pedido_minimo = :minimo,
-                aberto_automatico = :aberto,
-                endereco_completo = :end,
-                lat = :lat,
-                lng = :lng
-                WHERE filial_id = :id";
-        
-        $stmt = $db->prepare($sql);
-        $stmt->execute([
-            'logo' => $logo,
-            'capa' => $capa,
-            'cor' => $_POST['cor_primaria'],
-            'tempo' => $_POST['tempo_entrega'],
-            'minimo' => $valorMin,
-            // 'chave_pix' foi removido daqui
-            'aberto' => isset($_POST['aberto_auto']) ? 1 : 0,
-            'end' => $endereco,
-            'lat' => $lat,
-            'lng' => $lng,
-            'id' => $filialId
-        ]);
+       $sql = "UPDATE configuracoes_filial SET 
+            logo_url = :logo,
+            banner_capa_url = :capa,
+            cor_primaria = :cor,
+            tempo_medio_entrega = :tempo,
+            pedido_minimo = :minimo,
+            aberto_automatico = :aberto,
+            servico_salao = :salao,  /* <--- NOVO CAMPO */
+            endereco_completo = :end,
+            lat = :lat,
+            lng = :lng
+            WHERE filial_id = :id";
+    
+    $stmt = $db->prepare($sql);
+    $stmt->execute([
+        'logo' => $logo,
+        'capa' => $capa,
+        'cor' => $_POST['cor_primaria'],
+        'tempo' => $_POST['tempo_entrega'],
+        'minimo' => $valorMin,
+        'aberto' => isset($_POST['aberto_auto']) ? 1 : 0,
+        'salao' => isset($_POST['servico_salao']) ? 1 : 0, /* <--- CAPTURA O CHECKBOX */
+        'end' => $endereco,
+        'lat' => $lat,
+        'lng' => $lng,
+        'id' => $filialId
+    ]);
 
         // --- ETAPA 2: Salvar o PIX na tabela 'empresas' ---
         // Criamos uma query separada apenas para atualizar o PIX na tabela correta

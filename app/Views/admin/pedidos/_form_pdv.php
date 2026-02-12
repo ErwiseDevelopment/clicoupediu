@@ -164,7 +164,7 @@
                             <i class="fas fa-map-marker-alt absolute right-2 top-2.5 text-red-500"></i>
                         </div>
                         <div class="grid grid-cols-4 gap-2 mb-2">
-                            <input type="text" name="logradouro" id="logradouro" placeholder="Rua" class="col-span-3 border border-gray-200 rounded p-2 text-xs bg-gray-50 text-gray-500" readonly>
+                            <input type="text" name="endereco_entrega" id="logradouro" placeholder="Rua" class="col-span-3 border border-gray-200 rounded p-2 text-xs bg-gray-50 text-gray-500" readonly>
                             <input type="text" name="numero" id="numero" placeholder="Nº" class="col-span-1 border border-blue-300 rounded p-2 text-xs font-bold text-gray-900" onblur="calcularFrete()">
                         </div>
                         <div class="grid grid-cols-2 gap-2 mb-2">
