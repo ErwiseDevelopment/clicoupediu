@@ -4,80 +4,149 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | ClicouPediu</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
         body { font-family: 'Inter', sans-serif; }
+        
+        /* Padrão de fundo moderno para o lado direito */
+        .bg-pattern {
+            background-color: #0f172a;
+            background-image: radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                              radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+                              radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+        }
+        
+        /* Animação suave nos inputs */
+        input:focus + i { color: #2563eb; }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
-    
-    <div class="max-w-md w-full">
-        <div class="text-center mb-10">
-            <div class="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-xl shadow-lg mb-4">
-                <i class="fas fa-shopping-basket text-white text-xl"></i>
+<body class="bg-white h-screen w-full flex overflow-hidden">
+
+    <div class="w-full lg:w-1/2 flex flex-col justify-center items-center p-8 lg:p-12 relative z-10 bg-white">
+        
+        <div class="w-full max-w-[400px]">
+            <div class="mb-10 text-center lg:text-left">
+                <img src="<?php echo BASE_URL; ?>/assets/img/logo.png" alt="ClicouPediu" class="h-12 w-auto object-contain mx-auto lg:mx-0 mb-4">
             </div>
-            <h1 class="text-2xl font-800 text-slate-900 tracking-tight">ClicouPediu<span class="text-blue-600">.app</span></h1>
-            <p class="text-slate-400 font-semibold text-[10px] uppercase tracking-[0.2em] mt-1">Painel Administrativo</p>
-        </div>
 
-        <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/60 p-8 border border-slate-100">
-            
-            <?php if(isset($_GET['erro'])): ?>
-                <div class="bg-red-50 text-red-600 px-4 py-3 rounded-xl mb-6 text-xs font-bold flex items-center gap-2">
-                    <i class="fas fa-circle-exclamation"></i> Dados incorretos.
-                </div>
-            <?php endif; ?>
-
-            <?php if(isset($_GET['msg']) && $_GET['msg'] == 'criada'): ?>
-                <div class="bg-green-50 text-green-600 px-4 py-3 rounded-xl mb-6 text-xs font-bold flex items-center gap-2">
-                    <i class="fas fa-check-circle"></i> Conta criada! Faça seu login.
-                </div>
-            <?php endif; ?>
+            <div class="mb-8 text-center lg:text-left">
+                <h1 class="text-3xl font-bold text-slate-900 mb-2">Bem-vindo de volta!</h1>
+                <p class="text-slate-500 text-sm">Digite suas credenciais para acessar o painel.</p>
+            </div>
 
             <form action="<?php echo BASE_URL; ?>/admin/auth" method="POST" class="space-y-5">
-                <div class="space-y-1.5">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">E-mail</label>
-                    <input type="email" name="email" required placeholder="seu@email.com"
-                           class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-600 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-sm font-semibold text-slate-700">
+                
+                <?php if (isset($_GET['erro'])): ?>
+                <div class="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded-r flex items-center gap-3">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span>Email ou senha incorretos.</span>
+                </div>
+                <?php endif; ?>
+
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5 ml-1">Email Corporativo</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="far fa-envelope text-slate-400 group-focus-within:text-blue-600 transition-colors"></i>
+                        </div>
+                        <input type="email" name="email" required 
+                               class="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all text-slate-800 placeholder-slate-400" 
+                               placeholder="ex: seu@email.com">
+                    </div>
                 </div>
 
-                <div class="space-y-1.5">
-                    <div class="flex justify-between items-center px-1">
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Senha</label>
+                <div>
+                    <div class="flex justify-between items-center mb-1.5 ml-1">
+                        <label class="block text-sm font-semibold text-slate-700">Senha</label>
                     </div>
-                    <div class="relative">
-                        <input type="password" name="senha" id="senha" required placeholder="••••••••"
-                               class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-600 focus:ring-4 focus:ring-blue-50 outline-none transition-all text-sm font-semibold text-slate-700">
-                        <button type="button" onclick="toggleSenha()" class="absolute right-4 top-3.5 text-slate-400 hover:text-blue-600 transition-colors">
-                            <i id="eye-icon" class="fas fa-eye text-sm"></i>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fas fa-lock text-slate-400 group-focus-within:text-blue-600 transition-colors"></i>
+                        </div>
+                        <input type="password" name="senha" id="senha" required 
+                               class="w-full pl-11 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white transition-all text-slate-800 placeholder-slate-400" 
+                               placeholder="••••••••">
+                        
+                        <button type="button" onclick="toggleSenha()" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer focus:outline-none">
+                            <i class="far fa-eye" id="eye-icon"></i>
                         </button>
                     </div>
                 </div>
 
+                <div class="flex items-center justify-between pt-1">
+                    <div class="flex items-center">
+                        <input id="lembrar_me" name="lembrar_me" type="checkbox" 
+                               class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer transition-all">
+                        <label for="lembrar_me" class="ml-2 block text-sm text-slate-600 cursor-pointer select-none">
+                            Manter conectado
+                        </label>
+                    </div>
+                    <a href="#" class="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+                        Esqueceu a senha?
+                    </a>
+                </div>
+
                 <button type="submit" 
-                        class="w-full bg-slate-900 hover:bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm">
-                    Acessar Painel <i class="fas fa-arrow-right text-[10px]"></i>
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2">
+                    <span>Entrar no Sistema</span>
+                    <i class="fas fa-arrow-right text-sm"></i>
                 </button>
+
             </form>
-            
-            <div class="mt-8 text-center">
-                <a href="<?php echo BASE_URL; ?>/cadastro" class="text-xs font-semibold text-slate-400 hover:text-blue-600 transition-colors">
-                    Não tem conta? <span class="text-blue-600">Cadastre sua loja</span>
-                </a>
+
+            <div class="mt-8 text-center border-t border-slate-100 pt-6">
+                <p class="text-sm text-slate-500">
+                    Ainda não tem uma conta? 
+                    <a href="<?php echo BASE_URL; ?>/cadastro" class="font-bold text-blue-600 hover:text-blue-800 transition-colors">
+                        Criar loja grátis
+                    </a>
+                </p>
             </div>
         </div>
         
-        <p class="mt-10 text-center text-[9px] font-bold text-slate-300 uppercase tracking-widest">
-            &copy; 2026 ClicouPediu.app.br
+        <p class="absolute bottom-6 text-center text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
+            &copy; 2026 ClicouPediu Tecnologia
         </p>
+    </div>
+
+    <div class="hidden lg:flex w-1/2 bg-pattern relative items-center justify-center overflow-hidden">
+        
+        <div class="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+        
+        <div class="relative z-10 bg-white/10 backdrop-blur-lg border border-white/10 p-10 rounded-3xl max-w-md text-white shadow-2xl">
+            <div class="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/40">
+                <i class="fas fa-rocket text-2xl"></i>
+            </div>
+            <h2 class="text-3xl font-bold mb-4 leading-tight">Gerencie seu delivery com inteligência.</h2>
+            <p class="text-blue-100 text-lg leading-relaxed mb-6">
+                Acompanhe pedidos em tempo real, controle o caixa e imprima automaticamente na cozinha. Tudo em um só lugar.
+            </p>
+            
+            <div class="flex items-center gap-3 pt-4 border-t border-white/10">
+                <div class="flex -space-x-2">
+                    <img class="w-8 h-8 rounded-full border-2 border-slate-800" src="https://i.pravatar.cc/100?img=1" alt="">
+                    <img class="w-8 h-8 rounded-full border-2 border-slate-800" src="https://i.pravatar.cc/100?img=2" alt="">
+                    <img class="w-8 h-8 rounded-full border-2 border-slate-800" src="https://i.pravatar.cc/100?img=3" alt="">
+                </div>
+                <div class="text-sm font-medium text-blue-200">
+                    +2.000 Lojas ativas
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script>
         function toggleSenha() {
             const input = document.getElementById('senha');
             const icon = document.getElementById('eye-icon');
+            
             if (input.type === 'password') {
                 input.type = 'text';
                 icon.classList.remove('fa-eye');
