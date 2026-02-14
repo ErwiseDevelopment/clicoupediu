@@ -787,24 +787,36 @@ class PedidoController {
         require __DIR__ . '/../Views/admin/pedidos/cupom_cozinha.php';
     }
 
+    // =========================================================
+    // API SPOOLER LOGIN (BLINDADO CONTRA ERRO 500)
+    // =========================================================
     public function apiLoginSpooler() {
         header('Content-Type: application/json');
-        $email = $_POST['email'] ?? '';
-        $senha = $_POST['senha'] ?? '';
         
-        $db = \App\Core\Database::connect();
-        $stmt = $db->prepare("SELECT id, nome, senha, empresa_id FROM usuarios WHERE email = ? LIMIT 1");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+        try {
+            $email = $_POST['email'] ?? '';
+            $senha = $_POST['senha'] ?? '';
+            
+            $db = \App\Core\Database::connect();
+            $stmt = $db->prepare("SELECT id, nome, senha, empresa_id FROM usuarios WHERE email = ? LIMIT 1");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-        if ($user && password_verify($senha, $user['senha'])) {
-            $stmtEmp = $db->prepare("SELECT nome_fantasia FROM empresas WHERE id = ?");
-            $stmtEmp->execute([$user['empresa_id']]);
-            $empresa = $stmtEmp->fetch(\PDO::FETCH_ASSOC);
+            if ($user && password_verify($senha, $user['senha'])) {
+                $stmtEmp = $db->prepare("SELECT nome_fantasia FROM empresas WHERE id = ?");
+                $stmtEmp->execute([$user['empresa_id']]);
+                $empresa = $stmtEmp->fetch(\PDO::FETCH_ASSOC);
 
-            echo json_encode(['ok' => true, 'empresa_id' => $user['empresa_id'], 'nome_loja' => $empresa['nome_fantasia']]);
-        } else {
-            echo json_encode(['ok' => false, 'msg' => 'Email ou senha incorretos.']);
+                echo json_encode(['ok' => true, 'empresa_id' => $user['empresa_id'], 'nome_loja' => $empresa['nome_fantasia']]);
+            } else {
+                echo json_encode(['ok' => false, 'msg' => 'Email ou senha incorretos.']);
+            }
+
+        } catch (\Throwable $e) {
+            // Se der erro SQL, enviamos status 200 pro Python não se assustar, 
+            // mas enviamos a mensagem de erro real no JSON!
+            http_response_code(200);
+            echo json_encode(['ok' => false, 'msg' => 'Erro SQL: ' . $e->getMessage()]);
         }
         exit;
     }
