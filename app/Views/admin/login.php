@@ -32,7 +32,7 @@
         
         <div class="w-full max-w-[400px]">
             <div class="mb-10 text-center lg:text-left">
-                <img src="<?php echo BASE_URL; ?>/assets/img/logo.png" alt="ClicouPediu" class="h-12 w-auto object-contain mx-auto lg:mx-0 mb-4">
+                <img src="<?php echo BASE_URL; ?>/assets/img/logo.png" alt="ClicouPediu">
             </div>
 
             <div class="mb-8 text-center lg:text-left">

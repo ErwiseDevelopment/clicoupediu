@@ -179,26 +179,87 @@ class CardapioController {
 
     // Rota: /slug/mesa/hash (Acesso via QR Code)
     public function mesa($slug, $hash) {
-        $db = Database::connect();
+        $db = \App\Core\Database::connect();
         
-        $stmt = $db->prepare("SELECT m.*, f.empresa_id FROM mesas m 
+        // 1. Busca Mesa, Filial e Empresa
+        $stmt = $db->prepare("SELECT m.*, f.empresa_id, e.id as empresa_id_real 
+                              FROM mesas m 
                               JOIN filiais f ON m.filial_id = f.id 
                               JOIN empresas e ON f.empresa_id = e.id
                               WHERE m.hash_qr = ? AND e.slug = ? LIMIT 1");
         $stmt->execute([$hash, $slug]);
         $mesa = $stmt->fetch(\PDO::FETCH_ASSOC);
 
-        if (!$mesa) die("<h1>Mesa não encontrada</h1>");
+        if (!$mesa) die("<h1>Mesa não encontrada ou link inválido</h1>");
 
+        // 2. Verifica se já existe uma sessão ABERTA para esta mesa
+        $stmtSessao = $db->prepare("SELECT id, aprovado FROM mesa_sessoes WHERE mesa_id = ? AND status != 'encerrada' ORDER BY id DESC LIMIT 1");
+        $stmtSessao->execute([$mesa['id']]);
+        $sessao = $stmtSessao->fetch(\PDO::FETCH_ASSOC);
+
+        // 3. Lógica de Criação/Verificação
+        if (!$sessao) {
+            // Nenhuma sessão aberta: CRIA UMA NOVA como "Pendente" (aprovado = 0)
+            // Isso faz aparecer no painel do garçom para ele aprovar
+            $stmtInsert = $db->prepare("INSERT INTO mesa_sessoes (mesa_id, status, aprovado, tipo_divisao, created_at) VALUES (?, 'aberta', 0, 'unica', NOW())");
+            $stmtInsert->execute([$mesa['id']]);
+            $sessaoId = $db->lastInsertId();
+            $estaAprovado = false;
+        } else {
+            // Sessão já existe: verifica se já foi aprovada
+            $sessaoId = $sessao['id'];
+            $estaAprovado = ($sessao['aprovado'] == 1);
+        }
+
+        // 4. Se NÃO estiver aprovado, mostra a tela de espera
+        if (!$estaAprovado) {
+            // Variáveis para a view usar
+            $hashMesa = $hash;
+            $slugEmpresa = $slug;
+            
+            require __DIR__ . '/../Views/cardapio/aguardando_liberacao.php';
+            exit; // Interrompe aqui, não define cookie ainda
+        }
+
+        // 5. Se estiver APROVADO, define o cookie e libera o acesso
         $dadosCookie = [
             'id' => $mesa['id'],
             'numero' => $mesa['numero'],
             'hash' => $hash,
-            'filial_id' => $mesa['filial_id']
+            'filial_id' => $mesa['filial_id'],
+            'sessao_id' => $sessaoId // Útil guardar o ID da sessão também
         ];
         
         setcookie("mesa_ativa", json_encode($dadosCookie), time() + 86400, "/");
         header("Location: " . BASE_URL . "/{$slug}");
+        exit;
+    }
+
+    // API que a tela de espera chama a cada 3 segundos
+    public function apiChecarStatus() {
+        header('Content-Type: application/json');
+        $hash = $_POST['hash'] ?? '';
+        
+        if (!$hash) { echo json_encode(['status' => 'erro']); exit; }
+
+        $db = \App\Core\Database::connect();
+        
+        // Busca a sessão ativa dessa mesa pelo hash da mesa
+        $sql = "SELECT s.aprovado 
+                FROM mesa_sessoes s
+                JOIN mesas m ON s.mesa_id = m.id
+                WHERE m.hash_qr = ? AND s.status != 'encerrada'
+                ORDER BY s.id DESC LIMIT 1";
+                
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$hash]);
+        $sessao = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if ($sessao && $sessao['aprovado'] == 1) {
+            echo json_encode(['status' => 'liberado']);
+        } else {
+            echo json_encode(['status' => 'aguardando']);
+        }
         exit;
     }
 

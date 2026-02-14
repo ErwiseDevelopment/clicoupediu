@@ -51,7 +51,7 @@ if ($url[0] == 'admin') {
                     case 'index': $ctrl->index(); break;
                     case 'historico': $ctrl->historico(); break;
                     case 'imprimir': $ctrl->imprimir(); break;
-                    
+                    case 'despachar': $ctrl->despachar(); break;
                     // --- NOVA ROTA HABILITADA ---
                     case 'imprimirCozinha': $ctrl->imprimirCozinha(); break;
                     // ----------------------------
@@ -182,7 +182,13 @@ if ($url[0] == 'admin') {
                         $ctrl->pagarParticipante();
                     }elseif ($subacao == 'reabrirParticipante') {
                     $ctrl->reabrirParticipante();
-                }
+                }elseif ($subacao == 'aprovarSessao') {
+                    $ctrl->aprovarSessao();
+                }elseif ($subacao=='trocarMesa'){
+                    $ctrl->trocarMesa();
+                }elseif($subacao=='apiChecarPendentes'){
+                    $ctrl->apiChecarPendentes();
+                }           
                 else {
                     $ctrl->index();
                 }
@@ -372,6 +378,19 @@ else {
         </body></html>';
         exit;
     }
+
+    // Rota de Acesso à Mesa via QR Code (ex: /slug/mesa/hash)
+    if (isset($url[1]) && $url[1] == 'mesa' && isset($url[2])) {
+        $ctrl = new \App\Controllers\CardapioController();
+        $ctrl->mesa($slug, $url[2]); // Valida e redireciona
+        exit;
+    }
+    if (isset($url[1]) && $url[1] == 'apiChecarStatus') {
+        $ctrl = new \App\Controllers\CardapioController();
+        $ctrl->apiChecarStatus();
+        exit;
+    }
+    // --------------------------------------------
 
     // Rota de Acesso à Mesa via QR Code (ex: /slug/mesa/hash)
     if (isset($url[1]) && $url[1] == 'mesa' && isset($url[2])) {

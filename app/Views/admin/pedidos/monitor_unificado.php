@@ -1,10 +1,13 @@
-<?php $titulo = "Monitor KDS"; require __DIR__ . '/../../partials/header.php'; ?>
+<?php 
+$titulo = "Monitor KDS - Cozinha"; 
+require __DIR__ . '/../../partials/header.php'; 
+?>
 
 <audio id="som_alerta" src="https://media.geeksforgeeks.org/wp-content/uploads/20190531135120/beep.mp3" preload="auto"></audio>
 
 <style>
-    /* LAYOUT CLARO (IGUAL AO SISTEMA) */
-    body { background-color: #f3f4f6; } /* Cinza Claro */
+    /* LAYOUT CLARO E LIMPO */
+    body { background-color: #f3f4f6; } 
     .kanban-col { min-height: calc(100vh - 180px); }
     
     .card-pedido {
@@ -19,16 +22,17 @@
     }
     .card-pedido:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
 
-    /* IDENTIFICAÇÃO */
+    /* IDENTIFICAÇÃO DE BORDA */
     .borda-mesa { border-left-color: #9333ea; }     /* Roxo */
     .borda-delivery { border-left-color: #2563eb; } /* Azul */
+    .borda-balcao { border-left-color: #ea580c; }   /* Laranja */
     
+    /* BADGES */
     .badge-mesa { background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }
     .badge-delivery { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
 
-    /* TEXTOS */
-    .text-titulo { color: #111827; font-weight: 800; }
-    .text-sub { color: #6b7280; font-size: 0.75rem; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 </style>
 
 <div class="flex h-screen overflow-hidden font-sans bg-gray-100">
@@ -40,7 +44,7 @@
         <div class="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shrink-0 z-20 shadow-sm">
             <div class="flex items-center gap-4">
                 <h1 class="text-xl font-black text-gray-800 flex items-center gap-2">
-                    <i class="fas fa-tv text-orange-500"></i> MONITOR DE COZINHA
+                    <i class="fas fa-fire text-orange-500"></i> MONITOR DE COZINHA
                 </h1>
                 <span class="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full border border-green-200 flex items-center gap-2">
                     <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> AO VIVO
@@ -87,7 +91,7 @@
                 <div class="w-1/3 flex flex-col bg-gray-50 rounded-2xl border border-gray-200 h-full">
                     <div class="p-4 border-b border-gray-200 bg-white rounded-t-2xl flex justify-between items-center">
                         <div class="flex items-center gap-2 font-black text-gray-700 uppercase tracking-wide">
-                            <div class="w-3 h-3 rounded-full bg-green-500"></div> Entrega / Pronto
+                            <div class="w-3 h-3 rounded-full bg-green-500"></div> Pronto / Balcão
                         </div>
                         <span id="count-entrega" class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-0.5 rounded border border-gray-200">0</span>
                     </div>
@@ -103,21 +107,24 @@
     let somAtivo = false;
     let ultimoId = 0;
 
-    // --- FUNÇÃO ATUALIZADA: VISUALIZAR ITENS ENTREGUES ---
     function criarCardHtml(p, coluna) {
+        
+        // REGRA DE OURO: Se o pedido for Delivery E estiver Pronto, SOME da Cozinha!
+        if (coluna === 'entrega' && p.tipo_entrega === 'entrega') {
+            return ''; 
+        }
+
         const isMesa = p.tipo_entrega === 'salao';
         const bordaClass = isMesa ? 'borda-mesa' : 'borda-delivery';
         const badgeClass = isMesa ? 'badge-mesa' : 'badge-delivery';
         const icone = isMesa ? 'fas fa-chair' : 'fas fa-motorcycle';
         const textoBadge = isMesa ? `MESA ${p.num_mesa}` : 'DELIVERY';
         
+        // Lógica de Itens
         let listaItens = '';
         if(p.itens && p.itens.length > 0) {
             p.itens.forEach(i => {
-                // Trata status nulo como 'fila' para garantir exibição
                 const status = i.status_item || 'fila'; 
-
-                // Pula itens cancelados
                 if (status === 'cancelado') return;
 
                 let styleDiv = 'hover:bg-gray-50 cursor-pointer border-b border-gray-100';
@@ -144,11 +151,7 @@
                         htmlAdds += `<div class="text-[11px] text-gray-500 ml-7 font-bold">+ ${nomeAdd}</div>`; 
                     });
                 }
-
-                let htmlObs = '';
-                if(i.observacao_item) {
-                    htmlObs = `<div class="ml-7 mt-1"><span class="text-[10px] bg-red-100 text-red-600 border border-red-200 font-black px-1 rounded uppercase tracking-wide">OBS: ${i.observacao_item}</span></div>`;
-                }
+                let htmlObs = i.observacao_item ? `<div class="ml-7 mt-1"><span class="text-[10px] bg-red-100 text-red-600 border border-red-200 font-black px-1 rounded uppercase tracking-wide">OBS: ${i.observacao_item}</span></div>` : '';
 
                 listaItens += `
                 <div class="py-2 px-1 transition ${styleDiv}" onclick="alternarItem(${i.id}, '${proximoStatus}')">
@@ -161,24 +164,24 @@
                 </div>`;
             });
         }
-        
-        // Se não tiver itens visíveis (tudo cancelado ou vazio), mostra aviso
-        if(listaItens === '') {
-            listaItens = '<div class="p-2 text-center text-xs text-gray-400 italic">Sem itens ativos</div>';
-        }
+        if(listaItens === '') listaItens = '<div class="p-2 text-center text-xs text-gray-400 italic">Sem itens ativos</div>';
 
         const min = Math.floor((new Date() - new Date(p.created_at)) / 60000);
         let corTempo = 'text-gray-400 bg-gray-100';
         if(min > 20) corTempo = 'text-orange-600 bg-orange-100';
         if(min > 40) corTempo = 'text-red-600 bg-red-100 animate-pulse';
 
+        // --- AÇÃO PRINCIPAL DE ACORDO COM A COLUNA ---
         let btnAcao = '';
         if(coluna === 'analise') {
             btnAcao = `<button onclick="mover(${p.id}, 'preparo')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-xs flex-1 transition shadow-md">ACEITAR <i class="fas fa-check ml-1"></i></button>`;
-        } else if(coluna === 'preparo') {
+        } 
+        else if(coluna === 'preparo') {
             btnAcao = `<button onclick="mover(${p.id}, 'entrega')" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded text-xs flex-1 transition shadow-md">PRONTO <i class="fas fa-arrow-right ml-1"></i></button>`;
-        } else {
-            btnAcao = `<button onclick="mover(${p.id}, 'finalizado')" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-xs flex-1 transition shadow-md">FINALIZAR <i class="fas fa-check-double ml-1"></i></button>`;
+        } 
+        else if(coluna === 'entrega') {
+            // Apenas para Mesa/Balcão (pois Delivery foi oculto na primeira linha desta função)
+            btnAcao = `<button onclick="mover(${p.id}, 'finalizado')" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-xs flex-1 transition shadow-md">ENTREGUE <i class="fas fa-check-double ml-1"></i></button>`;
         }
 
         return `
@@ -202,41 +205,29 @@
                 ${listaItens}
             </div>
 
-            <div class="flex gap-2">
+            <div class="flex gap-2 mt-3">
                 <button onclick="imprimirCozinha(${p.id})" class="bg-gray-800 hover:bg-black text-white p-2 rounded transition shadow-sm" title="Imprimir para Cozinha">
                     <i class="fas fa-print"></i>
                 </button>
-                <button onclick="cancelarPedido(${p.id})" class="bg-white border border-gray-200 text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded transition" title="Cancelar Pedido"><i class="fas fa-trash-alt"></i></button>
+                <button onclick="cancelarPedido(${p.id})" class="bg-white border border-gray-200 text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded transition" title="Cancelar Pedido">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
                 ${btnAcao}
             </div>
         </div>`;
     }
 
+    // --- FUNÇÕES AUXILIARES ---
     function cancelarPedido(id) {
         if(!confirm("⚠️ Tem certeza que deseja CANCELAR este pedido?\n\nEsta ação não pode ser desfeita.")) return;
-        
-        const f = new FormData(); 
-        f.append('id', id); 
-        f.append('status', 'cancelado');
-        
-        fetch('<?= BASE_URL ?>/admin/pedidos/mudarStatus', { method: 'POST', body: f })
-            .then(() => atualizarTela())
-            .catch(e => alert("Erro ao cancelar"));
+        const f = new FormData(); f.append('id', id); f.append('status', 'cancelado');
+        fetch('<?= BASE_URL ?>/admin/pedidos/mudarStatus', { method: 'POST', body: f }).then(() => atualizarTela()).catch(e => alert("Erro ao cancelar"));
     }
 
-    // --- NOVA FUNÇÃO: ALTERNAR STATUS ITEM ---
     function alternarItem(itemId, novoStatus) {
-        // Evita propagação se clicar em botões internos (se houver)
         event.stopPropagation();
-
-        const f = new FormData();
-        f.append('item_id', itemId);
-        f.append('status', novoStatus);
-
-        // Chama o método novo que criamos no controller
-        fetch('<?= BASE_URL ?>/admin/pedidos/mudarStatusItem', { method: 'POST', body: f })
-            .then(() => atualizarTela()) // Recarrega para ver a mudança
-            .catch(e => console.error("Erro ao mudar item", e));
+        const f = new FormData(); f.append('item_id', itemId); f.append('status', novoStatus);
+        fetch('<?= BASE_URL ?>/admin/pedidos/mudarStatusItem', { method: 'POST', body: f }).then(() => atualizarTela());
     }
 
     function atualizarTela() {
@@ -256,7 +247,13 @@
     }
 
     function renderizarColuna(idCol, idCount, lista, tipo) {
-        document.getElementById(idCount).innerText = lista.length;
+        // Ignora os de delivery na hora de contar na coluna de Entrega (pois não aparecem mais)
+        let contagem = lista.length;
+        if (tipo === 'entrega') {
+            contagem = lista.filter(p => p.tipo_entrega !== 'entrega').length;
+        }
+
+        document.getElementById(idCount).innerText = contagem;
         let html = '';
         lista.forEach(p => html += criarCardHtml(p, tipo));
         document.getElementById(idCol).innerHTML = html;
@@ -267,27 +264,32 @@
         fetch('<?= BASE_URL ?>/admin/pedidos/mudarStatus', { method: 'POST', body: f }).then(() => atualizarTela());
     }
 
-function imprimirCozinha(id) {
-        // Cria um iframe oculto se não existir
+    function imprimirCozinha(id) {
         let iframe = document.getElementById('frame_print_cozinha');
         if (!iframe) {
             iframe = document.createElement('iframe');
             iframe.id = 'frame_print_cozinha';
-            iframe.style.position = 'fixed';
-            iframe.style.left = '-9999px'; // Esconde fora da tela
-            iframe.style.width = '0';
-            iframe.style.height = '0';
-            iframe.style.border = '0';
+            iframe.style.position = 'fixed'; iframe.style.left = '-9999px'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
             document.body.appendChild(iframe);
         }
-        
-        // Carrega o cupom no iframe
-        // O próprio arquivo cupom_cozinha.php já tem um script que roda window.print() ao carregar
         iframe.src = '<?= BASE_URL ?>/admin/pedidos/imprimirCozinha?id=' + id;
     }
-
     
+    function ativarSom() {
+        somAtivo = !somAtivo;
+        document.getElementById('btn-som').innerHTML = somAtivo ? '<i class="fas fa-volume-up text-blue-600"></i> SOM ON' : '<i class="fas fa-volume-mute"></i> SOM OFF';
+        if(somAtivo) document.getElementById('som_alerta').play().catch(()=>{});
+    }
+    function tocarSom() {
+        if(somAtivo) {
+            const audio = document.getElementById('som_alerta');
+            audio.currentTime = 0; audio.play().catch(()=>{});
+        }
+    }
+
     setInterval(() => { document.getElementById('relogio').innerText = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}); }, 1000);
     setInterval(atualizarTela, 5000);
     atualizarTela();
 </script>
+
+<?php require __DIR__ . '/../../partials/footer.php'; ?>

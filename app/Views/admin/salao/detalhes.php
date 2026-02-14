@@ -95,9 +95,25 @@
                                 <?php foreach($itens as $item): ?>
                                 <td class="px-3 py-2 align-top">
                                     <div class="font-black text-gray-800 uppercase text-xs">
-                                        <?php echo $item['produto_nome']; ?>
+                                    <?php echo $item['produto_nome']; ?>
+                                </div>
+                                
+                                <?php if(!empty($item['complementos_ja_pedidos'])): ?>
+                                    <div class="text-[10px] text-gray-500 font-bold mt-0.5 leading-tight">
+                                        <?php foreach($item['complementos_ja_pedidos'] as $add): ?>
+                                            <span class="block">+ <?php echo $add; ?></span>
+                                        <?php endforeach; ?>
                                     </div>
-                                    
+                                <?php endif; ?>
+
+                                <?php if(!empty($item['observacao_item'])): ?>
+                                    <div class="mt-1">
+                                        <span class="bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wide">
+                                            OBS: <?php echo $item['observacao_item']; ?>
+                                        </span>
+                                    </div>
+                                <?php endif; ?>
+                                                                
                                     <div class="mt-2">
                                         <?php if($item['status_item'] == 'cancelado'): ?>
                                             <span class="bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wide">

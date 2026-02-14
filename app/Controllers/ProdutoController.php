@@ -11,7 +11,7 @@ class ProdutoController {
         $empresaId = $_SESSION['empresa_id'];
 
         $modelProd = new Produto();
-        $produtos = $modelProd->listar($empresaId); // Agora só lista simples
+        $produtos = $modelProd->listar($empresaId); 
         $gruposAdicionais = $modelProd->listarTodosGrupos($empresaId);
 
         $modelCat = new Categoria();
@@ -27,10 +27,6 @@ class ProdutoController {
         $empresaId = $_SESSION['empresa_id'];
         $model = new Produto();
 
-        // SEGURANÇA DE TIPO:
-        // Se vier o campo 'tipo' no POST, usa ele.
-        // Se não vier (form de produto comum não manda), verifica se é edição e mantém o que está no banco.
-        // Isso impede que um Combo vire Simples se editado por aqui.
         $tipo = $_POST['tipo'] ?? null;
         
         if (empty($tipo) && !empty($id)) {
@@ -38,10 +34,9 @@ class ProdutoController {
             $tipo = $prodAtual['tipo'] ?? 'simples';
         }
         if (empty($tipo)) {
-            $tipo = 'simples'; // Padrão para novos produtos nesta tela
+            $tipo = 'simples';
         }
 
-        // Upload Imagem
         $imagemUrl = $_POST['imagem_atual'] ?? ''; 
         if (isset($_FILES['imagem']) && $_FILES['imagem']['error'] === 0) {
             $extensao = pathinfo($_FILES['imagem']['name'], PATHINFO_EXTENSION);
@@ -54,7 +49,6 @@ class ProdutoController {
             }
         }
         
-        // Disponibilidade
         $disponibilidade = [];
         if(isset($_POST['dia_semana']) && is_array($_POST['dia_semana'])) {
             foreach($_POST['dia_semana'] as $k => $dia) {
@@ -68,7 +62,6 @@ class ProdutoController {
             }
         }
 
-        // Complementos
         $complementos = $_POST['grupos_complementos'] ?? []; 
 
         $produtoIdRetornado = $model->salvar([
@@ -83,7 +76,8 @@ class ProdutoController {
             'ativo' => isset($_POST['ativo']) ? $_POST['ativo'] : 1,
             'visivel_online' => isset($_POST['visivel_online']) ? 1 : 0,
             'controle_estoque' => isset($_POST['controle_estoque']) ? 1 : 0,
-            'tipo' => $tipo, // Tipo protegido
+            'precisa_preparo' => isset($_POST['precisa_preparo']) ? 1 : 0, // <-- AQUI A MÁGICA
+            'tipo' => $tipo, 
             'disponibilidade' => $disponibilidade,
             'complementos' => $complementos
         ]);

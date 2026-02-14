@@ -76,12 +76,21 @@ require __DIR__ . '/../../partials/header.php';
                                 </div>
                             </div>
                             
-                            <div class="pt-2">
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" name="controle_estoque" id="prod_controle_estoque" value="1" class="sr-only peer" checked onchange="toggleEstoque()">
-                                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                                    <span class="ml-2 text-xs font-bold text-slate-500">Controlar Estoque?</span>
-                                </label>
+                            <div class="grid grid-cols-2 gap-2 pt-2">
+                                <div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" name="controle_estoque" id="prod_controle_estoque" value="1" class="sr-only peer" checked onchange="toggleEstoque()">
+                                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                        <span class="ml-2 text-[11px] font-bold text-slate-500">Controlar Estoque</span>
+                                    </label>
+                                </div>
+                                <div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" name="precisa_preparo" id="prod_precisa_preparo" value="1" class="sr-only peer" checked>
+                                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500"></div>
+                                        <span class="ml-2 text-[11px] font-bold text-slate-500">Enviar p/ Cozinha</span>
+                                    </label>
+                                </div>
                             </div>
 
                             <div id="div_estoque">
@@ -215,10 +224,14 @@ require __DIR__ . '/../../partials/header.php';
                             $isInterno = isset($prod['visivel_online']) && $prod['visivel_online'] == 0;
                             $temPromo = isset($prod['preco_promocional']) && $prod['preco_promocional'] > 0;
                             $controlaEstoque = isset($prod['controle_estoque']) ? $prod['controle_estoque'] : 1;
+                            $precisaPreparo = isset($prod['precisa_preparo']) ? $prod['precisa_preparo'] : 1;
                         ?>
                         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden group hover:shadow-xl transition-all duration-300 relative">
                             <?php if($isInterno): ?>
                                 <div class="absolute top-0 left-0 z-10 bg-slate-800 text-white text-[10px] font-bold px-3 py-1 rounded-br-xl shadow-md"><i class="fas fa-eye-slash mr-1"></i> INTERNO</div>
+                            <?php endif; ?>
+                            <?php if(!$precisaPreparo): ?>
+                                <div class="absolute top-0 right-0 z-10 bg-orange-500 text-white text-[9px] font-bold px-2 py-1 rounded-bl-xl shadow-md"><i class="fas fa-fire-ban mr-1"></i> S/ PREPARO</div>
                             <?php endif; ?>
 
                             <div class="relative h-48 overflow-hidden bg-slate-100">
@@ -354,7 +367,7 @@ require __DIR__ . '/../../partials/header.php';
         }
     }
 
-    // --- JS: CONTROLE DE ESTOQUE ---
+    // --- JS: CONTROLE DE ESTOQUE E PREPARO ---
     function toggleEstoque() {
         const chk = document.getElementById('prod_controle_estoque');
         const div = document.getElementById('div_estoque');
@@ -509,8 +522,17 @@ require __DIR__ . '/../../partials/header.php';
         document.getElementById('prod_desc').value = prod.descricao;
         document.getElementById('imagem_atual').value = prod.imagem_url;
 
+        // Checkboxes atualizados
         document.getElementById('prod_visivel').checked = (prod.visivel_online != 0);
         document.getElementById('prod_controle_estoque').checked = (prod.controle_estoque != 0);
+        
+        // Se prod.precisa_preparo existir e for != 0 (ou null/indefinido, pois padrão é 1), marca true
+        let preparo = 1;
+        if(prod.precisa_preparo !== undefined && prod.precisa_preparo !== null) {
+            preparo = prod.precisa_preparo;
+        }
+        document.getElementById('prod_precisa_preparo').checked = (preparo != 0);
+
         toggleEstoque();
 
         let imgUrl = prod.imagem_url;
@@ -546,7 +568,7 @@ require __DIR__ . '/../../partials/header.php';
             });
         }
 
-        // Complementos (Preencher Modal)
+        // Complementos
         document.querySelectorAll('.chk-complemento').forEach(chk => chk.checked = false);
         if(prod.complementos && prod.complementos.length > 0) {
             prod.complementos.forEach(grupoId => {
@@ -573,8 +595,12 @@ require __DIR__ . '/../../partials/header.php';
         document.getElementById('prod_promocional').value = '';
         document.getElementById('prod_estoque').value = '';
         document.getElementById('prod_desc').value = '';
+        
+        // Reseta todos os switches para o padrão (ON)
         document.getElementById('prod_visivel').checked = true; 
         document.getElementById('prod_controle_estoque').checked = true;
+        document.getElementById('prod_precisa_preparo').checked = true;
+
         toggleEstoque();
 
         document.getElementById('preview_small').src = 'https://via.placeholder.com/150?text=Foto';

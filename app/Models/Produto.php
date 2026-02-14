@@ -16,7 +16,7 @@ class Produto {
                 LEFT JOIN estoque_filial e ON p.id = e.produto_id
                 WHERE p.empresa_id = :id 
                 AND p.ativo = 1 
-                AND (p.tipo = 'simples' OR p.tipo IS NULL) -- FILTRO ADICIONADO
+                AND (p.tipo = 'simples' OR p.tipo IS NULL)
                 GROUP BY p.id
                 ORDER BY p.id DESC";
         
@@ -31,6 +31,7 @@ class Produto {
 
         return $produtos;
     }
+    
     public function listarSimples($empresaId) {
         $db = Database::connect();
         $stmt = $db->prepare("
@@ -46,7 +47,6 @@ class Produto {
     public function salvar($dados) {
         $db = Database::connect();
         
-        // Tratamento de Preços (Correção do erro anterior inclusa)
         $valorBase = $this->tratarPreco($dados['preco'] ?? 0);
         $valorPromo = $this->tratarPreco($dados['preco_promocional'] ?? 0);
 
@@ -62,6 +62,7 @@ class Produto {
                     ativo = :ativo,
                     visivel_online = :visivel,
                     controle_estoque = :controle_estoque,
+                    precisa_preparo = :precisa_preparo,
                     tipo = :tipo 
                     WHERE id = :id AND empresa_id = :emp_id";
             
@@ -75,7 +76,8 @@ class Produto {
                 'img' => $dados['imagem_url'] ?? '',
                 'ativo' => $dados['ativo'],
                 'visivel' => $dados['visivel_online'],
-                'controle_estoque' => $dados['controle_estoque'], // Novo campo
+                'controle_estoque' => $dados['controle_estoque'],
+                'precisa_preparo' => $dados['precisa_preparo'],
                 'tipo' => $dados['tipo'] ?? 'simples',
                 'id' => $dados['id'],
                 'emp_id' => $dados['empresa_id']
@@ -83,8 +85,8 @@ class Produto {
             $id = $dados['id']; 
         } else {
             // CRIAR
-            $sql = "INSERT INTO produtos (empresa_id, categoria_id, nome, descricao, preco_base, preco_promocional, imagem_url, ativo, visivel_online, controle_estoque, tipo) 
-                    VALUES (:emp_id, :cat_id, :nome, :desc, :preco, :promo, :img, :ativo, :visivel, :controle_estoque, :tipo)";
+            $sql = "INSERT INTO produtos (empresa_id, categoria_id, nome, descricao, preco_base, preco_promocional, imagem_url, ativo, visivel_online, controle_estoque, precisa_preparo, tipo) 
+                    VALUES (:emp_id, :cat_id, :nome, :desc, :preco, :promo, :img, :ativo, :visivel, :controle_estoque, :precisa_preparo, :tipo)";
             
             $stmt = $db->prepare($sql);
             $stmt->execute([
@@ -97,7 +99,8 @@ class Produto {
                 'img' => $dados['imagem_url'] ?? '',
                 'ativo' => $dados['ativo'],
                 'visivel' => $dados['visivel_online'],
-                'controle_estoque' => $dados['controle_estoque'], // Novo campo
+                'controle_estoque' => $dados['controle_estoque'],
+                'precisa_preparo' => $dados['precisa_preparo'],
                 'tipo' => $dados['tipo'] ?? 'simples'
             ]);
             $id = $db->lastInsertId(); 
@@ -114,7 +117,6 @@ class Produto {
         return $id;
     }
 
-    // Método auxiliar corrigido para evitar erro de decimal vazio
     private function tratarPreco($valor) {
         if (empty($valor)) return 0;
         $v = is_array($valor) ? ($valor[0] ?? 0) : $valor;
@@ -164,10 +166,8 @@ class Produto {
         return $stmt->fetchAll(PDO::FETCH_COLUMN); 
     }
 
-  // Lista todos os grupos disponíveis para vincular (COM OS ITENS)
     public function listarTodosGrupos($empresaId) {
         $db = Database::connect();
-        // O GROUP_CONCAT junta os nomes das opções (tabela opcionais) em uma única string
         $sql = "SELECT g.*, 
                 GROUP_CONCAT(o.nome SEPARATOR ', ') as lista_itens
                 FROM grupos_adicionais g

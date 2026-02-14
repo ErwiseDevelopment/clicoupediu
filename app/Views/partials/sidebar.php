@@ -44,22 +44,17 @@ function menuAtivo($url_atual, $rota) {
 }
 ?>
 
-
-
 <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/60 z-[70] hidden backdrop-blur-sm transition-opacity opacity-0"></div>
 
-<aside id="sidebar" class="bg-white border-r border-slate-200 flex flex-col h-full fixed md:static top-0 left-0 z-[80] transition-all duration-300 w-64 transform -translate-x-full md:translate-x-0">
+<aside id="sidebar" class="bg-white border-r border-slate-200 flex flex-col h-screen fixed md:static top-0 left-0 z-[80] transition-all duration-300 w-64 transform -translate-x-full md:translate-x-0">
     
-    <div class="h-20 hidden md:flex items-center px-6 border-b border-slate-100 mb-2 shrink-0">
-        <div class="flex items-center gap-3 logo-area">
-            <div class="bg-indigo-600 text-white min-w-[36px] h-9 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
-                <i class="fas fa-bolt text-sm"></i>
-            </div>
-            <span class="text-xl font-black text-slate-800 tracking-tighter sidebar-text">Clicou<span class="text-indigo-600">Pediu</span></span>
-        </div>
+    <div class="h-24 hidden md:flex items-center justify-center px-6 border-b border-slate-100 mb-2 shrink-0">
+        <a href="<?= BASE_URL ?>/admin/dashboard" class="flex items-center justify-center w-full">
+            <img src="<?= BASE_URL ?>/assets/img/logosidebar.png" alt="Logo">
+        </a>
     </div>
 
-    <div class="px-4 mb-4 mt-4 md:mt-2">
+    <div class="px-4 mb-4 mt-4 md:mt-2 shrink-0">
         <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 space-y-2">
             <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">Links de Acesso</p>
             <a href="<?= BASE_URL ?>/<?= $slugEmpresa ?>" target="_blank" class="flex items-center gap-2 text-[11px] font-bold text-slate-600 hover:text-indigo-600 transition group">
@@ -77,83 +72,83 @@ function menuAtivo($url_atual, $rota) {
         </div>
     </div>
 
-    <nav class="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar pb-24 md:pb-10">
+    <nav class="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar pb-10">
     
-    <p class="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 mt-4">Operação</p>
-    <div class="<?= $classeBloqueio ?>">
-        
-        <a href="<?= BASE_URL ?>/admin/dashboard" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'dashboard') ?>">
-            <i class="fas fa-chart-line w-5 text-center mr-3"></i> <span>Painel Geral</span>
-        </a>
+        <p class="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 mt-4">Operação</p>
+        <div class="<?= $classeBloqueio ?>">
+            
+            <a href="<?= BASE_URL ?>/admin/dashboard" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'dashboard') ?>">
+                <i class="fas fa-chart-line w-5 text-center mr-3"></i> <span>Painel Geral</span>
+            </a>
 
-        <a href="<?= BASE_URL ?>/admin/pedidos/kds" target="_blank" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= (strpos($url_atual, 'kds') !== false) ? 'bg-red-50 text-red-700 border-r-4 border-red-600 font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-r-4 border-transparent' ?>">
-            <i class="fas fa-fire w-5 text-center mr-3 text-red-500"></i> <span>Monitor Cozinha</span>
-        </a>
+            <a href="<?= BASE_URL ?>/admin/pedidos/kds" target="_blank" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= (strpos($url_atual, 'kds') !== false) ? 'bg-red-50 text-red-700 border-r-4 border-red-600 font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-r-4 border-transparent' ?>">
+                <i class="fas fa-fire w-5 text-center mr-3 text-red-500"></i> <span>Monitor Cozinha</span>
+            </a>
 
-        <a href="<?= BASE_URL ?>/admin/pedidos" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= (strpos($url_atual, 'pedidos') !== false && strpos($url_atual, 'historico') === false && strpos($url_atual, 'kds') === false) ? 'bg-orange-50 text-orange-700 border-r-4 border-orange-500 font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-r-4 border-transparent' ?>">
-            <i class="fas fa-desktop w-5 text-center mr-3"></i> <span>Pedidos</span>
-        </a>
+            <a href="<?= BASE_URL ?>/admin/pedidos" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= (strpos($url_atual, 'pedidos') !== false && strpos($url_atual, 'historico') === false && strpos($url_atual, 'kds') === false) ? 'bg-orange-50 text-orange-700 border-r-4 border-orange-500 font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-r-4 border-transparent' ?>">
+                <i class="fas fa-desktop w-5 text-center mr-3"></i> <span>Pedidos</span>
+            </a>
 
-        <?php if (isset($temSalao) && $temSalao): ?>
-        <a href="<?= BASE_URL ?>/admin/salao" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'salao') ?>">
-            <i class="fas fa-chair w-5 text-center mr-3 text-purple-600"></i> <span>Mesas / Salão</span>
-        </a>
-        <?php endif; ?>
+            <?php if (isset($temSalao) && $temSalao): ?>
+            <a href="<?= BASE_URL ?>/admin/salao" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'salao') ?>">
+                <i class="fas fa-chair w-5 text-center mr-3 text-purple-600"></i> <span>Mesas / Salão</span>
+            </a>
+            <?php endif; ?>
 
-        <a href="<?php echo BASE_URL; ?>/admin/pedidos/historico" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= (strpos($url_atual, 'historico') !== false) ? 'bg-indigo-50 text-indigo-700 border-r-4 border-indigo-600 font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-r-4 border-transparent' ?>">
-            <i class="fas fa-history w-5 text-center mr-3"></i> <span>Histórico Vendas</span>
-        </a>
-    </div>
+            <a href="<?php echo BASE_URL; ?>/admin/pedidos/historico" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= (strpos($url_atual, 'historico') !== false) ? 'bg-indigo-50 text-indigo-700 border-r-4 border-indigo-600 font-bold shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-r-4 border-transparent' ?>">
+                <i class="fas fa-history w-5 text-center mr-3"></i> <span>Histórico Vendas</span>
+            </a>
+        </div>
 
-    <p class="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 mt-6">Catálogo</p>
-    <div class="<?= $classeBloqueio ?>">
-        <a href="<?= BASE_URL ?>/admin/produtos" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'produtos') ?>">
-            <i class="fas fa-hamburger w-5 text-center mr-3"></i> <span>Produtos</span>
-        </a>
-        <a href="<?= BASE_URL ?>/admin/promocoes" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'promocoes') ?>">
-            <i class="fas fa-fire w-5 text-center mr-3 text-red-500"></i> <span>Combos & Ofertas</span>
-        </a>
-        <a href="<?= BASE_URL ?>/admin/categorias" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'categorias') ?>">
-            <i class="fas fa-layer-group w-5 text-center mr-3"></i> <span>Categorias</span>
-        </a>
-        <a href="<?= BASE_URL ?>/admin/adicionais" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'adicionais') ?>">
-            <i class="fas fa-puzzle-piece w-5 text-center mr-3"></i> <span>Adicionais</span>
-        </a>
-        <a href="<?= BASE_URL ?>/admin/estoque" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'estoque') ?>">
-            <i class="fas fa-boxes-stacked w-5 text-center mr-3"></i> <span>Controle de Estoque</span>
-        </a>
-    </div>
+        <p class="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 mt-6">Catálogo</p>
+        <div class="<?= $classeBloqueio ?>">
+            <a href="<?= BASE_URL ?>/admin/produtos" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'produtos') ?>">
+                <i class="fas fa-hamburger w-5 text-center mr-3"></i> <span>Produtos</span>
+            </a>
+            <a href="<?= BASE_URL ?>/admin/promocoes" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'promocoes') ?>">
+                <i class="fas fa-fire w-5 text-center mr-3 text-red-500"></i> <span>Combos & Ofertas</span>
+            </a>
+            <a href="<?= BASE_URL ?>/admin/categorias" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'categorias') ?>">
+                <i class="fas fa-layer-group w-5 text-center mr-3"></i> <span>Categorias</span>
+            </a>
+            <a href="<?= BASE_URL ?>/admin/adicionais" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'adicionais') ?>">
+                <i class="fas fa-puzzle-piece w-5 text-center mr-3"></i> <span>Adicionais</span>
+            </a>
+            <a href="<?= BASE_URL ?>/admin/estoque" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'estoque') ?>">
+                <i class="fas fa-boxes-stacked w-5 text-center mr-3"></i> <span>Controle de Estoque</span>
+            </a>
+        </div>
 
-    <p class="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 mt-6">Financeiro</p>
-    <div class="<?= $classeBloqueio ?>">
-        <a href="<?= BASE_URL ?>/admin/financeiro" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'financeiro') ?>">
-            <i class="fas fa-money-bill-trend-up w-5 text-center mr-3"></i> <span>Contas a Receber</span>
-        </a>
-        <a href="<?= BASE_URL ?>/admin/contas-pagar" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'contas-pagar') ?>">
-            <i class="fas fa-file-invoice w-5 text-center mr-3"></i> <span>Contas a Pagar</span>
-        </a>
-        <a href="<?= BASE_URL ?>/admin/faturas" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= (strpos($url_atual, 'faturas') !== false) ? 'bg-indigo-50 text-indigo-700 font-bold border-r-4 border-indigo-600 shadow-sm' : 'text-slate-600 hover:bg-slate-50' ?>">
-            <i class="fas fa-credit-card w-5 text-center mr-3"></i> <span>Minha Assinatura</span>
-            <?php if($isBloqueado): ?> <span class="ml-auto text-[8px] bg-red-600 text-white px-1.5 py-0.5 rounded font-black uppercase">Vencida</span> <?php endif; ?>
-        </a>
-    </div>
+        <p class="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 mt-6">Financeiro</p>
+        <div class="<?= $classeBloqueio ?>">
+            <a href="<?= BASE_URL ?>/admin/financeiro" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'financeiro') ?>">
+                <i class="fas fa-money-bill-trend-up w-5 text-center mr-3"></i> <span>Contas a Receber</span>
+            </a>
+            <a href="<?= BASE_URL ?>/admin/contas-pagar" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'contas-pagar') ?>">
+                <i class="fas fa-file-invoice w-5 text-center mr-3"></i> <span>Contas a Pagar</span>
+            </a>
+            <a href="<?= BASE_URL ?>/admin/faturas" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= (strpos($url_atual, 'faturas') !== false) ? 'bg-indigo-50 text-indigo-700 font-bold border-r-4 border-indigo-600 shadow-sm' : 'text-slate-600 hover:bg-slate-50' ?>">
+                <i class="fas fa-credit-card w-5 text-center mr-3"></i> <span>Minha Assinatura</span>
+                <?php if($isBloqueado): ?> <span class="ml-auto text-[8px] bg-red-600 text-white px-1.5 py-0.5 rounded font-black uppercase">Vencida</span> <?php endif; ?>
+            </a>
+        </div>
 
-    <p class="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 mt-6">Configurações</p>
-    <div class="<?= $classeBloqueio ?>">
-        <a href="<?= BASE_URL ?>/admin/configuracoes/empresa" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'configuracoes') ?>">
-            <i class="fas fa-shop w-5 text-center mr-3"></i> <span>Minha Loja</span>
-        </a>
-        <a href="<?= BASE_URL ?>/admin/taxas-km" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'taxas-km') ?>">
-            <i class="fas fa-route w-5 text-center mr-3"></i> <span>Raio de Entrega</span>
-        </a>
-        <a href="<?= BASE_URL ?>/admin/motoboys" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'motoboys') ?>">
-            <i class="fas fa-motorcycle w-5 text-center mr-3"></i> <span>Motoboys</span>
-        </a>
-        <a href="<?= BASE_URL ?>/admin/usuarios" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'usuarios') ?>">
-            <i class="fas fa-users-gear w-5 text-center mr-3"></i> <span>Equipe & Acessos</span>
-        </a>
-    </div>
-</nav>
+        <p class="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[2px] mb-2 mt-6">Configurações</p>
+        <div class="<?= $classeBloqueio ?>">
+            <a href="<?= BASE_URL ?>/admin/configuracoes/empresa" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'configuracoes') ?>">
+                <i class="fas fa-shop w-5 text-center mr-3"></i> <span>Minha Loja</span>
+            </a>
+            <a href="<?= BASE_URL ?>/admin/taxas-km" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'taxas-km') ?>">
+                <i class="fas fa-route w-5 text-center mr-3"></i> <span>Raio de Entrega</span>
+            </a>
+            <a href="<?= BASE_URL ?>/admin/motoboys" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'motoboys') ?>">
+                <i class="fas fa-motorcycle w-5 text-center mr-3"></i> <span>Motoboys</span>
+            </a>
+            <a href="<?= BASE_URL ?>/admin/usuarios" class="flex items-center px-4 py-3 text-sm rounded-xl transition-all <?= menuAtivo($url_atual, 'usuarios') ?>">
+                <i class="fas fa-users-gear w-5 text-center mr-3"></i> <span>Equipe & Acessos</span>
+            </a>
+        </div>
+    </nav>
     
 
     <div class="p-4 border-t border-slate-100 bg-slate-50/50 shrink-0">
@@ -197,8 +192,7 @@ function menuAtivo($url_atual, $rota) {
     document.addEventListener('DOMContentLoaded', function() {
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
-        const btnToggle = document.getElementById('btnMobileToggle'); // Topo
-        const btnFooterMenu = document.getElementById('btnOpenMenuFooter'); // Rodapé
+        const btnFooterMenu = document.getElementById('btnOpenMenuFooter');
 
         function toggleMenu() {
             const isOpen = !sidebar.classList.contains('-translate-x-full');
@@ -215,11 +209,9 @@ function menuAtivo($url_atual, $rota) {
             }
         }
 
-        if(btnToggle) btnToggle.addEventListener('click', toggleMenu);
         if(btnFooterMenu) btnFooterMenu.addEventListener('click', toggleMenu);
         if(overlay) overlay.addEventListener('click', toggleMenu);
 
-        // Fecha ao clicar em um link no mobile
         const sidebarLinks = sidebar.querySelectorAll('a');
         sidebarLinks.forEach(link => {
             link.addEventListener('click', () => {

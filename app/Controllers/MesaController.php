@@ -124,4 +124,20 @@ class MesaController {
         if (session_status() === PHP_SESSION_NONE) session_start();
         if (!isset($_SESSION['usuario_id'])) { header('Location: ' . BASE_URL . '/admin'); exit; }
     }
+
+    public function aprovarSessao() {
+        $this->verificarLogin(); // Garante que é admin/garçom
+        $mesaId = $_POST['mesa_id']; // Recebe via POST
+        
+        $db = \App\Core\Database::connect();
+        
+        // Atualiza a sessão aberta dessa mesa para aprovado = 1
+        $db->prepare("UPDATE mesa_sessoes SET aprovado = 1 WHERE mesa_id = ? AND status != 'encerrada'")
+           ->execute([$mesaId]);
+
+        // Opcional: Atualiza status da mesa para ocupada se estiver livre
+        $db->prepare("UPDATE mesas SET status_atual = 'ocupada' WHERE id = ?")->execute([$mesaId]);
+        
+        echo json_encode(['ok' => true]);
+    }
 }

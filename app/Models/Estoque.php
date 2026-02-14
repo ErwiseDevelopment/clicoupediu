@@ -8,7 +8,7 @@ class Estoque {
     // Lista produtos e calcula estoque virtual de combos
     public function listar($filialId) {
         $db = Database::connect();
-        // SQL com CASE WHEN para identificar Combos e calcular o estoque virtual
+        // SQL ajustado: Adicionada a condição AND p.controle_estoque = 1
         $sql = "SELECT p.id, p.nome, p.imagem_url, p.tipo, c.nome as categoria, 
                        CASE 
                            WHEN p.tipo = 'combo' THEN (
@@ -25,6 +25,7 @@ class Estoque {
                 LEFT JOIN estoque_filial e ON p.id = e.produto_id AND e.filial_id = :filial_id
                 WHERE p.empresa_id = (SELECT empresa_id FROM filiais WHERE id = :filial_id)
                 AND p.ativo = 1
+                AND p.controle_estoque = 1 -- Filtra apenas produtos com controle de estoque ativo
                 ORDER BY p.tipo DESC, p.nome ASC";
         
         $stmt = $db->prepare($sql);
@@ -34,6 +35,17 @@ class Estoque {
 
     public function atualizarEstoque($filialId, $produtoId, $novaQtd) {
         $db = Database::connect();
+        
+        // Verifica se o produto tem controle de estoque ativo antes de atualizar
+        // Isso previne atualizações acidentais via API ou requisições diretas
+        $checkProd = $db->prepare("SELECT controle_estoque FROM produtos WHERE id = ?");
+        $checkProd->execute([$produtoId]);
+        $prod = $checkProd->fetch();
+
+        if (!$prod || $prod['controle_estoque'] != 1) {
+            return false; // Não faz nada se o controle de estoque estiver desativado
+        }
+
         $check = $db->prepare("SELECT id FROM estoque_filial WHERE filial_id = ? AND produto_id = ?");
         $check->execute([$filialId, $produtoId]);
         if ($check->fetch()) {
@@ -48,6 +60,16 @@ class Estoque {
 
     public function alternarDisponibilidade($filialId, $produtoId, $status) {
         $db = Database::connect();
+        
+        // Verifica controle de estoque também aqui
+        $checkProd = $db->prepare("SELECT controle_estoque FROM produtos WHERE id = ?");
+        $checkProd->execute([$produtoId]);
+        $prod = $checkProd->fetch();
+
+         if (!$prod || $prod['controle_estoque'] != 1) {
+            return false;
+        }
+
         $this->atualizarEstoque($filialId, $produtoId, 0); 
         $sql = "UPDATE estoque_filial SET ativo_nesta_filial = :status WHERE filial_id = :fid AND produto_id = :pid";
         $stmt = $db->prepare($sql);

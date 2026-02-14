@@ -12,23 +12,24 @@ class SalaoController {
     // =========================================================================
     // TELA 1: MAPA DE MESAS
     // =========================================================================
-    public function index() {
+  public function index() {
         $this->verificarLogin();
         $db = Database::connect();
         $empresaId = $_SESSION['empresa_id'];
 
-        // Busca Filial
+        // Busca ID da Filial
         $stmtFilial = $db->prepare("SELECT id FROM filiais WHERE empresa_id = ? LIMIT 1");
         $stmtFilial->execute([$empresaId]);
         $filial = $stmtFilial->fetch();
         $filialId = $filial['id'];
 
-        // Lista Mesas com Status
+        // --- ATENÇÃO AQUI: ADICIONADO 'COALESCE(s.aprovado, 1)' ---
         $sql = "SELECT m.*, 
                        s.id as sessao_id, 
                        s.status as status_sessao, 
                        s.tipo_divisao, 
                        s.created_at as data_abertura, 
+                       COALESCE(s.aprovado, 1) as sessao_aprovada, 
                        (SELECT COUNT(*) FROM mesa_participantes WHERE sessao_id = s.id) as qtd_pessoas,
                        (SELECT SUM(valor_total) FROM pedidos WHERE sessao_id = s.id AND status != 'cancelado') as total_consumido
                 FROM mesas m
@@ -41,6 +42,109 @@ class SalaoController {
         $mesas = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         require __DIR__ . '/../Views/admin/salao/mapa.php';
+    }
+
+    public function trocarMesa() {
+        $this->verificarLogin();
+        header('Content-Type: application/json');
+        
+        $mesaOrigemId = $_POST['mesa_origem'] ?? null;
+        $mesaDestinoId = $_POST['mesa_destino'] ?? null;
+        
+        if (!$mesaOrigemId || !$mesaDestinoId || $mesaOrigemId == $mesaDestinoId) {
+            echo json_encode(['ok' => false, 'erro' => 'Mesa de destino inválida.']);
+            exit;
+        }
+
+        $db = \App\Core\Database::connect();
+        
+        try {
+            $db->beginTransaction();
+            
+            // 1. Pega a sessão aberta da mesa de origem
+            $stmtSessao = $db->prepare("SELECT id FROM mesa_sessoes WHERE mesa_id = ? AND status != 'encerrada' ORDER BY id DESC LIMIT 1");
+            $stmtSessao->execute([$mesaOrigemId]);
+            $sessao = $stmtSessao->fetch();
+            
+            if (!$sessao) {
+                throw new \Exception("Nenhuma conta aberta na mesa de origem.");
+            }
+
+            // 2. Verifica se a mesa de destino REALMENTE está livre (para não encavalar dados)
+            $stmtDest = $db->prepare("SELECT id FROM mesa_sessoes WHERE mesa_id = ? AND status != 'encerrada'");
+            $stmtDest->execute([$mesaDestinoId]);
+            if ($stmtDest->fetch()) {
+                throw new \Exception("A mesa de destino acabou de ser ocupada por outra pessoa.");
+            }
+
+            // 3. Muda a sessão para a mesa nova
+            $db->prepare("UPDATE mesa_sessoes SET mesa_id = ? WHERE id = ?")->execute([$mesaDestinoId, $sessao['id']]);
+            
+            // 4. Libera a mesa antiga e ocupa a nova visualmente
+            $db->prepare("UPDATE mesas SET status_atual = 'livre' WHERE id = ?")->execute([$mesaOrigemId]);
+            $db->prepare("UPDATE mesas SET status_atual = 'ocupada' WHERE id = ?")->execute([$mesaDestinoId]);
+            
+            $db->commit();
+            echo json_encode(['ok' => true]);
+            
+        } catch (\Exception $e) {
+            $db->rollBack();
+            echo json_encode(['ok' => false, 'erro' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    public function apiChecarPendentes() {
+        $this->verificarLogin();
+        header('Content-Type: application/json');
+        
+        $db = \App\Core\Database::connect();
+        $empresaId = $_SESSION['empresa_id'];
+
+        // Busca Filial
+        $stmtFilial = $db->prepare("SELECT id FROM filiais WHERE empresa_id = ? LIMIT 1");
+        $stmtFilial->execute([$empresaId]);
+        $filial = $stmtFilial->fetch();
+        
+        if (!$filial) {
+            echo json_encode(['pendentes' => 0]);
+            exit;
+        }
+
+        // Conta quantas sessões estão abertas e não aprovadas (aprovado = 0)
+        $sql = "SELECT COUNT(*) as qtd 
+                FROM mesa_sessoes s 
+                JOIN mesas m ON s.mesa_id = m.id 
+                WHERE s.aprovado = 0 AND s.status != 'encerrada' AND m.filial_id = ?";
+                
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$filial['id']]);
+        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        echo json_encode(['pendentes' => (int)$result['qtd']]);
+        exit;
+    }
+
+    // =========================================================================
+    // AÇÃO: APROVAR MESA (VOCÊ PRECISA DISSO PARA O BOTÃO FUNCIONAR)
+    // =========================================================================
+    public function aprovarSessao() {
+        $this->verificarLogin();
+        header('Content-Type: application/json');
+        
+        $mesaId = $_POST['mesa_id'];
+        
+        $db = Database::connect();
+        
+        // 1. Atualiza para Aprovado (1)
+        $db->prepare("UPDATE mesa_sessoes SET aprovado = 1 WHERE mesa_id = ? AND status != 'encerrada'")
+           ->execute([$mesaId]);
+
+        // 2. Muda status da mesa para ocupada
+        $db->prepare("UPDATE mesas SET status_atual = 'ocupada' WHERE id = ?")->execute([$mesaId]);
+        
+        echo json_encode(['ok' => true]);
+        exit;
     }
 
     public function imprimirConta() {
