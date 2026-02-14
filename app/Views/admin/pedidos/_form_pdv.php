@@ -148,11 +148,11 @@
                         <div class="grid grid-cols-12 gap-2">
                             <div class="col-span-5">
                                 <label class="text-[10px] font-bold text-gray-400 uppercase">WhatsApp</label>
-                                <input type="tel" name="telefone" id="telefone" onblur="buscarCliente()" class="w-full border border-gray-300 rounded p-2 text-sm font-bold bg-gray-50 focus:bg-white" placeholder="Só números">
+                                <input type="tel" name="cliente_telefone" id="telefone" onblur="buscarCliente()" class="w-full border border-gray-300 rounded p-2 text-sm font-bold bg-gray-50 focus:bg-white" placeholder="Só números">
                             </div>
                             <div class="col-span-7">
                                 <label class="text-[10px] font-bold text-gray-400 uppercase">Nome</label>
-                                <input type="text" name="nome" id="nome_cliente" class="w-full border border-gray-300 rounded p-2 text-sm bg-gray-50 focus:bg-white" placeholder="Nome do Cliente">
+                                <input type="text" name="cliente_nome" id="nome_cliente" class="w-full border border-gray-300 rounded p-2 text-sm bg-gray-50 focus:bg-white" placeholder="Nome do Cliente">
                             </div>
                         </div>
                     </div>
@@ -726,5 +726,50 @@
     function filtrarProdutos() { const term = document.getElementById('busca_prod').value.toLowerCase(); document.querySelectorAll('.prod-card').forEach(card => { card.style.display = card.getAttribute('data-nome').includes(term) ? 'flex' : 'none'; }); }
     document.addEventListener("DOMContentLoaded", function() { const inp = document.getElementById('busca_endereco'); if (inp && typeof google !== 'undefined') { const ac = new google.maps.places.Autocomplete(inp, { componentRestrictions: {country:'br'}, fields: ['geometry','address_components'] }); ac.addListener('place_changed', () => { const p = ac.getPlace(); if(!p.geometry) return; document.getElementById('lat_entrega_hidden').value = p.geometry.location.lat(); document.getElementById('lng_entrega_hidden').value = p.geometry.location.lng(); let rua='', num='', bairro=''; p.address_components.forEach(c => { if(c.types.includes('route')) rua = c.long_name; if(c.types.includes('street_number')) num = c.long_name; if(c.types.includes('sublocality_level_1')) bairro = c.long_name; }); document.getElementById('logradouro').value = rua; document.getElementById('bairro').value = bairro; document.getElementById('numero').value = num; if(num) calcularFrete(); else document.getElementById('numero').focus(); }); } });
     function mascaraMoeda(i) { var v = i.value.replace(/\D/g,''); v = (v/100).toFixed(2) + ''; v = v.replace(".", ","); v = v.replace(/(\d)(\d{3})(\d{3}),/g, "$1.$2.$3,"); v = v.replace(/(\d)(\d{3}),/g, "$1.$2,"); i.value = v; }
-    function buscarCliente() { let t = document.getElementById('telefone').value.replace(/\D/g,''); if(t.length < 8) return; fetch('<?= BASE_URL ?>/admin/pedidos/buscarClienteAjax', { method: 'POST', body: new URLSearchParams({telefone: t}) }).then(r => r.json()).then(d => { if(d.encontrado) document.getElementById('nome_cliente').value = d.dados.nome; }); }
+    function buscarCliente() { 
+        let t = document.getElementById('telefone').value.replace(/\D/g,''); 
+        if(t.length < 8) return; 
+        
+        const f = new FormData();
+        f.append('telefone', t);
+
+        fetch('<?= BASE_URL ?>/admin/pedidos/buscarClienteAjax', { 
+            method: 'POST', 
+            body: f 
+        })
+        .then(r => r.json())
+        .then(d => { 
+            if(d.encontrado && d.dados) { 
+                // 1. Preenche os campos
+                if (document.getElementById('nome_cliente') && d.dados.nome) {
+                    document.getElementById('nome_cliente').value = d.dados.nome;
+                }
+                if (document.getElementById('logradouro') && d.dados.logradouro) {
+                    document.getElementById('logradouro').value = d.dados.logradouro;
+                }
+                if (document.getElementById('numero') && d.dados.numero) {
+                    document.getElementById('numero').value = d.dados.numero;
+                }
+                if (document.getElementById('bairro') && d.dados.bairro) {
+                    document.getElementById('bairro').value = d.dados.bairro;
+                }
+                if (document.getElementById('complemento') && d.dados.complemento) {
+                    document.getElementById('complemento').value = d.dados.complemento;
+                }
+                
+                // 2. Garante que a tela mude para "Entrega" (caso estivesse em Retirada)
+                if (typeof mudarTipo === 'function') {
+                    mudarTipo('entrega');
+                }
+                
+                // 3. Dá um delay de 300 milissegundos e força o cálculo do frete!
+                if(d.dados.numero && d.dados.logradouro && typeof calcularFrete === 'function') {
+                    setTimeout(() => {
+                        calcularFrete();
+                    }, 300);
+                }
+            } 
+        })
+        .catch(e => console.error("Erro ao buscar cliente:", e));
+    }
 </script>

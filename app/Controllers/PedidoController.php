@@ -167,11 +167,48 @@ class PedidoController {
             $itens = json_decode($_POST['itens_json'] ?? '[]', true);
             if(empty($itens)) throw new \Exception('Carrinho vazio.');
 
+            // 1. Extrai os dados básicos primeiro
+            $telefoneLimpo = preg_replace('/[^0-9]/', '', $_POST['cliente_telefone'] ?? '');
+            $nomeCliente = $_POST['cliente_nome'] ?? 'Consumidor';
+            $empresaId = $_SESSION['empresa_id'];
+
+            $db = \App\Core\Database::connect();
+            $clienteId = null;
+
+            // ========================================================================
+            // 2. NOVA LÓGICA: SALVAR/ATUALIZAR NA TABELA DE CLIENTES AUTOMATICAMENTE
+            // ========================================================================
+            if (!empty($telefoneLimpo)) {
+                // Verifica se o cliente já existe por esse telefone
+                $stmtCli = $db->prepare("SELECT id FROM clientes WHERE telefone = ? AND empresa_id = ? LIMIT 1");
+                $stmtCli->execute([$telefoneLimpo, $empresaId]);
+                $clienteDb = $stmtCli->fetch(\PDO::FETCH_ASSOC);
+
+                if ($clienteDb) {
+                    $clienteId = $clienteDb['id'];
+                    // Se o nome for diferente de "Consumidor", atualiza o cadastro dele
+                    if (strtolower(trim($nomeCliente)) !== 'consumidor' && !empty(trim($nomeCliente))) {
+                        $db->prepare("UPDATE clientes SET nome = ? WHERE id = ?")->execute([$nomeCliente, $clienteId]);
+                    }
+                } else {
+                    // Cliente novo! Insere na tabela clientes
+                    if (strtolower(trim($nomeCliente)) === 'consumidor' || empty(trim($nomeCliente))) {
+                        $nomeCliente = 'Cliente ' . $telefoneLimpo;
+                    }
+                    $db->prepare("INSERT INTO clientes (empresa_id, nome, telefone) VALUES (?, ?, ?)")
+                       ->execute([$empresaId, $nomeCliente, $telefoneLimpo]);
+                    $clienteId = $db->lastInsertId();
+                }
+            }
+            // ========================================================================
+
+            // 3. Monta os dados do pedido já incluindo o ID do cliente real
             $dados = [
-                'empresa_id'       => $_SESSION['empresa_id'],
+                'empresa_id'       => $empresaId,
                 'pedido_id'        => $_POST['pedido_id'] ?? '',
-                'cliente_nome'     => $_POST['cliente_nome'] ?? 'Consumidor',
-                'cliente_telefone' => preg_replace('/[^0-9]/', '', $_POST['cliente_telefone'] ?? ''),
+                'cliente_id'       => $clienteId, // <-- Agora o pedido fica vinculado ao ID do cliente!
+                'cliente_nome'     => $nomeCliente,
+                'cliente_telefone' => $telefoneLimpo,
                 'tipo_entrega'     => $_POST['tipo_entrega'],
                 'endereco'         => $_POST['endereco_entrega'] ?? '', 
                 'numero'           => $_POST['numero'] ?? '',
@@ -197,8 +234,6 @@ class PedidoController {
             if ($dados['tipo_entrega'] === 'entrega' && empty($dados['endereco'])) {
                 throw new \Exception('Endereço é obrigatório para entrega.');
             }
-
-            $db = \App\Core\Database::connect();
 
             if ($dados['tipo_entrega'] === 'salao' && !empty($dados['sessao_id']) && empty($dados['pedido_id'])) {
                 
@@ -552,13 +587,39 @@ class PedidoController {
         echo json_encode(['ok' => true]); exit;
     }
 
-    public function buscarClienteAjax() {
-        $this->verificarLogin(); ob_clean();
-        $tel = preg_replace('/[^0-9]/', '', $_POST['telefone'] ?? '');
-        $db = Database::connect();
-        $stmt = $db->prepare("SELECT nome FROM clientes WHERE telefone LIKE ? AND empresa_id = ? ORDER BY id DESC LIMIT 1");
-        $stmt->execute(["%$tel%", $_SESSION['empresa_id']]);
-        echo json_encode(['encontrado' => ($stmt->rowCount() > 0), 'dados' => $stmt->fetch(\PDO::FETCH_ASSOC)]); exit;
+   public function buscarClienteAjax() {
+        $this->verificarLogin(); 
+        if(ob_get_length()) ob_clean();
+        header('Content-Type: application/json');
+
+        try {
+            $tel = preg_replace('/[^0-9]/', '', $_POST['telefone'] ?? $_POST['cliente_telefone'] ?? '');
+            $empresaId = $_SESSION['empresa_id'];
+            
+            $db = \App\Core\Database::connect();
+            
+            // 1. Tenta buscar no último pedido para puxar Nome + Endereço completo
+            // CORRIGIDO: mudado de 'endereco' para 'endereco_entrega'
+            $stmt = $db->prepare("SELECT cliente_nome as nome, endereco_entrega as logradouro, numero, bairro, complemento 
+                                  FROM pedidos 
+                                  WHERE cliente_telefone LIKE ? AND empresa_id = ? 
+                                  ORDER BY id DESC LIMIT 1");
+            $stmt->execute(["%$tel%", $empresaId]);
+            $dados = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            // 2. Se não achou pedido anterior, busca só o nome na tabela de clientes
+            if (!$dados) {
+                $stmtCli = $db->prepare("SELECT nome FROM clientes WHERE telefone LIKE ? AND empresa_id = ? ORDER BY id DESC LIMIT 1");
+                $stmtCli->execute(["%$tel%", $empresaId]);
+                $dados = $stmtCli->fetch(\PDO::FETCH_ASSOC);
+            }
+
+            echo json_encode(['encontrado' => !empty($dados), 'dados' => $dados ?: []]); 
+        } catch (\Throwable $e) {
+            // Se der erro, manda falso em vez de quebrar a tela com HTML
+            echo json_encode(['encontrado' => false, 'erro' => $e->getMessage()]);
+        }
+        exit;
     }
     
     public function getItensPedido() {
