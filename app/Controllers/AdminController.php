@@ -2,8 +2,6 @@
 namespace App\Controllers;
 
 use App\Core\Database;
-// Não precisamos mais do Tenant aqui dentro, faremos a checagem manual para redirecionar
-// use App\Core\Tenant; 
 
 class AdminController {
     
@@ -13,10 +11,51 @@ class AdminController {
         }
     }
 
+    // --- NOVA FUNÇÃO: Restaura a sessão via Cookie + Tabela user_sessions ---
+    private function verificarOuRestaurarLogin() {
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        
+        // 1. Se a sessão normal do PHP ainda está viva, segue o jogo
+        if (isset($_SESSION['usuario_id'])) {
+            return true;
+        }
+
+        // 2. Se a sessão morreu, mas o navegador tem o Cookie de Lembrança
+        if (isset($_COOKIE['admin_token'])) {
+            $tokenPuro = $_COOKIE['admin_token'];
+            $tokenHash = hash('sha256', $tokenPuro);
+
+            $db = Database::connect();
+            $stmt = $db->prepare("
+                SELECT u.id, u.nome, u.empresa_id, e.slug 
+                FROM user_sessions us
+                INNER JOIN usuarios u ON us.user_id = u.id
+                LEFT JOIN empresas e ON u.empresa_id = e.id
+                WHERE us.token_hash = ? 
+                LIMIT 1
+            ");
+            $stmt->execute([$tokenHash]);
+            $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($user) {
+                // Acesso Legítimo! Recria a sessão invisivelmente
+                $_SESSION['usuario_id'] = $user['id'];
+                $_SESSION['usuario_nome'] = $user['nome'];
+                $_SESSION['empresa_id'] = $user['empresa_id'];
+                $_SESSION['empresa_slug'] = $user['slug'] ?? '';
+                return true;
+            } else {
+                // O cookie existe, mas o hash é falso ou expirado. Limpa o invasor.
+                setcookie('admin_token', '', time() - 3600, '/');
+            }
+        }
+        return false;
+    }
+
     // Tela de Login
     public function login() {
-        // Se já está logado, verifica para onde mandar (Dashboard ou Fatura)
-        if (isset($_SESSION['usuario_id'])) {
+        // Se já está logado ou se o cookie restaurou o login automaticamente
+        if ($this->verificarOuRestaurarLogin()) {
             $this->verificarRedirecionamentoInicial();
             exit;
         }
@@ -30,9 +69,6 @@ class AdminController {
 
         $db = Database::connect();
         
-        // Busca usuário
-        // ATENÇÃO: Verifique se no seu banco a coluna é 'senha' ou 'senha_hash'. 
-        // Mantive 'senha_hash' conforme seu arquivo original enviada.
         $stmt = $db->prepare("SELECT * FROM usuarios WHERE email = :email AND ativo = 1 LIMIT 1");
         $stmt->execute(['email' => $email]);
         $usuario = $stmt->fetch();
@@ -40,30 +76,37 @@ class AdminController {
         // Verifica Senha
         if ($usuario && password_verify($senha, $usuario['senha_hash'])) {
             
-            // Busca dados da Empresa
             $stmtEmp = $db->prepare("SELECT * FROM empresas WHERE id = :id LIMIT 1");
             $stmtEmp->execute(['id' => $usuario['empresa_id']]);
             $empresa = $stmtEmp->fetch();
 
-            // Seta Sessão
             $_SESSION['usuario_id'] = $usuario['id'];
             $_SESSION['usuario_nome'] = $usuario['nome'];
             $_SESSION['empresa_id'] = $usuario['empresa_id'];
             $_SESSION['empresa_slug'] = $empresa['slug'];
 
-            // --- NOVO: MANTER CONECTADO ---
-            // Se o checkbox foi marcado, cria o token persistente
+            // === SISTEMA DE LOGIN PERSISTENTE (Salva na user_sessions) ===
             if (isset($_POST['lembrar_me'])) {
-                \App\Core\AuthSession::lembrarUsuario($usuario['id']);
-            }
-            // -----------------------------
+                $tokenPuro = bin2hex(random_bytes(32)); 
+                $tokenHash = hash('sha256', $tokenPuro); 
 
-            // Redireciona conforme status da conta
+                // Limpa sessões antigas deste usuário no banco
+                $db->prepare("DELETE FROM user_sessions WHERE user_id = ?")->execute([$usuario['id']]);
+                
+                // Salva o Hash no banco
+                $db->prepare("INSERT INTO user_sessions (user_id, token_hash) VALUES (?, ?)")
+                   ->execute([$usuario['id'], $tokenHash]);
+
+                // Salva o Token Puro no cookie do navegador (Válido por 30 dias)
+                $tempoExpiracao = time() + (30 * 24 * 60 * 60);
+                setcookie('admin_token', $tokenPuro, $tempoExpiracao, '/');
+            }
+            // ==============================================================
+
             $this->verificarRedirecionamentoInicial();
             exit;
 
         } else {
-            // Erro de login
             header('Location: ' . BASE_URL . '/admin?erro=1');
             exit;
         }
@@ -72,13 +115,11 @@ class AdminController {
     public function index() {
         $this->protegerRota();
         
-        // Dados para o Dashboard
         $empresaId = $_SESSION['empresa_id'];
         $hoje = date('Y-m-d');
 
         $db = Database::connect();
         
-        // Exemplo: Total de Pedidos Hoje
         $stmt = $db->prepare("SELECT COUNT(*) as total, SUM(total) as faturamento FROM pedidos WHERE empresa_id = :id AND DATE(created_at) = :hoje AND status != 'cancelado'");
         $stmt->execute(['id' => $empresaId, 'hoje' => $hoje]);
         $resumoHoje = $stmt->fetch();
@@ -87,24 +128,31 @@ class AdminController {
     }
 
     public function logout() {
-        // --- NOVO: LIMPA O COOKIE DE LEMBRANÇA ---
-        \App\Core\AuthSession::limparLembranca();
-        // -----------------------------------------
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        
+        // === LIMPA O COOKIE E O BANCO ===
+        if (isset($_COOKIE['admin_token'])) {
+            $tokenHash = hash('sha256', $_COOKIE['admin_token']);
+            $db = Database::connect();
+            $db->prepare("DELETE FROM user_sessions WHERE token_hash = ?")->execute([$tokenHash]);
+            
+            setcookie('admin_token', '', time() - 3600, '/');
+        }
+        // ================================
 
         session_destroy();
         header('Location: ' . BASE_URL . '/admin');
         exit;
     }
 
-    // Função auxiliar para bloquear acesso direto
     private function protegerRota() {
-        if (!isset($_SESSION['usuario_id'])) {
+        // Agora, se a sessão cair, ele tenta restaurar antes de bloquear
+        if (!$this->verificarOuRestaurarLogin()) {
             header('Location: ' . BASE_URL . '/admin');
             exit;
         }
     }
 
-    // Função auxiliar para quem acessa /admin já logado
     private function verificarRedirecionamentoInicial() {
         if (isset($_SESSION['empresa_id'])) {
             $db = Database::connect();
@@ -114,14 +162,11 @@ class AdminController {
 
             $hoje = date('Y-m-d');
             
-            // Reaplica a lógica de bloqueio
             if ($empresa['licenca_tipo'] !== 'VIP' && (!$empresa['licenca_validade'] || $empresa['licenca_validade'] < $hoje)) {
-                // Se estiver vencido, manda para a tela de pagamento/bloqueio
                 header('Location: ' . BASE_URL . '/admin/fatura'); 
                 exit;
             }
 
-            // Se tudo ok, vai para o dashboard
             header('Location: ' . BASE_URL . '/admin/dashboard');
             exit;
         }

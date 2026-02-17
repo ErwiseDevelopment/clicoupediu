@@ -271,9 +271,15 @@ class CardapioController {
         header('Content-Type: application/json; charset=utf-8'); 
         date_default_timezone_set('America/Sao_Paulo');
         
-        try { 
+       try { 
             $dados = $_POST; 
-            if(empty($dados['itens_json'])) throw new \Exception('Carrinho vazio.'); 
+            // Converte o JSON para Array primeiro
+            $itens = json_decode($dados['itens_json'] ?? '[]', true); 
+            
+            // Verifica se o array resultante está vazio
+            if(empty($itens)) {
+                throw new \Exception('Sua sacola está vazia. Adicione itens antes de enviar.'); 
+            }
             
             // =================================================================
             // 🛑 TRAVA DE SEGURANÇA (ADICIONADA AQUI)

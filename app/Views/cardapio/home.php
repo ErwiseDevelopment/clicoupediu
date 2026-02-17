@@ -844,51 +844,62 @@
     }
 
     function enviarPedido() {
-        const b = document.getElementById('btn-enviar'); 
-        b.disabled = true; 
+        // 1. TRAVA DE CARRINHO VAZIO
+        if (carrinho.length === 0) {
+            alert("Sua sacola está vazia! Adicione produtos antes de confirmar o pedido.");
+            return; // Interrompe a função aqui
+        }
 
-        // 1. CRIA O FORMDATA PRIMEIRO
+        const b = document.getElementById('btn-enviar'); 
+        
+        // 2. TRAVA DE CAMPOS OBRIGATÓRIOS DO DELIVERY
+        if (!dadosMesa && document.getElementById('radio_entrega').checked) {
+            if (!document.getElementById('input_end').value) {
+                alert("Por favor, informe a Rua do endereço.");
+                document.getElementById('input_end').focus();
+                return;
+            }
+            if (!document.getElementById('input_num').value) {
+                alert("Por favor, informe o Número do endereço.");
+                document.getElementById('input_num').focus();
+                return;
+            }
+            if (!document.getElementById('input_comp').value) {
+                alert("Por favor, informe o Complemento ou um Ponto de Referência.");
+                document.getElementById('input_comp').focus();
+                return;
+            }
+        }
+
+        b.disabled = true; 
+        b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+
         const f = new FormData(document.getElementById('form-pedido'));
         const telLimpo = document.getElementById('cliente_telefone').value.replace(/\D/g,'');
         f.set('cliente_telefone', telLimpo);
 
-        // 2. VERIFICAÇÃO DE MESA (CRÍTICO)
         if(dadosMesa) {
             const jsonSessao = localStorage.getItem('mesa_sessao_' + dadosMesa.id);
             let sessao = null;
             
-            try { 
-                sessao = JSON.parse(jsonSessao); 
-            } catch(e) {}
+            try { sessao = JSON.parse(jsonSessao); } catch(e) {}
 
-            // Se não tiver sessão válida, BLOQUEIA O ENVIO
             if(!sessao || !sessao.sessao_id || !sessao.participante_id) {
                 alert("⚠️ Sessão inválida ou expirada.\nO sistema irá recarregar para você entrar novamente.");
                 localStorage.removeItem('mesa_sessao_' + dadosMesa.id); 
                 location.reload(); 
-                return; // PARE TUDO AQUI
-            }
-
-            // INJEÇÃO DOS DADOS OBRIGATÓRIOS PARA A TRAVA FUNCIONAR
-            f.set('tipo_entrega', 'salao'); 
-            f.append('sessao_id', sessao.sessao_id);
-            f.append('participante_id', sessao.participante_id); // <--- SEM ISSO A TRAVA NÃO FUNCIONA
-            f.append('cliente_nome', sessao.nome); 
-            f.append('forma_pagamento', 'dinheiro'); 
-
-        } else {
-            // Validação Delivery
-            if (document.getElementById('radio_entrega').checked && !document.getElementById('input_num').value) { 
-                alert("Informe o número do endereço."); 
-                b.disabled = false; 
                 return; 
             }
+
+            f.set('tipo_entrega', 'salao'); 
+            f.append('sessao_id', sessao.sessao_id);
+            f.append('participante_id', sessao.participante_id);
+            f.append('cliente_nome', sessao.nome); 
+            f.append('forma_pagamento', 'dinheiro'); 
         }
 
-        b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
-
         fetch(ROTA_SALVAR, { method: 'POST', body: f })
-            .then(r => r.json()) // Mudado para .json() direto para pegar erro formatado
+            .then(r => r.json())
             .then(d => {
                 if(d.ok){
                     fecharCheckout(); 
@@ -903,21 +914,21 @@
                     }
                     carrinho=[]; atualizarUI();
                     b.disabled = false;
-                    b.innerHTML = '<span>ENVIAR PARA COZINHA</span> <i class="fas fa-utensils"></i>';
+                    b.innerHTML = '<span>Confirmar Pedido</span> <i class="fab fa-whatsapp"></i>';
                 } else { 
-                    // AQUI VAI APARECER O ERRO "CONTA ENCERRADA"
                     alert(d.erro); 
-                    b.disabled=false; 
-                    b.innerHTML='Tentar Novamente'; 
+                    b.disabled = false; 
+                    b.innerHTML = 'Tentar Novamente'; 
                 }
             })
             .catch((err)=>{ 
                 console.error(err); 
-                // Tente ler como texto se o JSON falhar (erro de servidor)
-                alert("Erro ao processar. Verifique se a conta já não foi paga."); 
-                b.disabled=false; b.innerHTML='Tentar Novamente'; 
+                alert("Erro ao processar. Verifique sua conexão com a internet."); 
+                b.disabled = false; 
+                b.innerHTML = 'Tentar Novamente'; 
             });
     }
+    
     // --- FRETE (Só Delivery) ---
     function salvarEnderecoLocal(r,n,b,la,lo,f) { localStorage.setItem('end_salvo',JSON.stringify({r,n,b,la,lo,f})); atualizarTopo(r,n,f); }
     function carregarEnderecoSalvo() { const s=JSON.parse(localStorage.getItem('end_salvo')); if(s){ document.getElementById('input_end').value=s.r||''; document.getElementById('input_num').value=s.n||''; document.getElementById('input_bairro').value=s.b||''; document.getElementById('input_taxa_entrega').value=s.f||0; atualizarTopo(s.r,s.n,s.f); } }
@@ -1004,8 +1015,69 @@
         const f = new FormData(); f.append('mesa_id', dadosMesa.id); f.append('nome', nome); f.append('telefone', tel); f.append('tipo_divisao', tipo);
         fetch(ROTA_CHECKIN, { method: 'POST', body: f }).then(r => r.json()).then(d => { if(d.ok) { localStorage.setItem('mesa_sessao_' + dadosMesa.id, JSON.stringify({ sessao_id: d.sessao_id, participante_id: d.participante_id, nome: d.nome, telefone: tel })); document.getElementById('modal-checkin').remove(); } else { alert('Erro: ' + (d.erro || 'Falha')); btn.disabled = false; btn.innerHTML = 'TENTAR NOVAMENTE'; } }).catch(err => { alert('Erro de conexão.'); btn.disabled = false; btn.innerHTML = 'TENTAR NOVAMENTE'; });
     }
-    function usarLocalizacaoAtual() { const btn=document.querySelector('button[onclick="usarLocalizacaoAtual()"]'); btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>'; if(!navigator.geolocation) { alert("GPS não suportado"); return; } navigator.geolocation.getCurrentPosition(p=>{ const lat=p.coords.latitude, lng=p.coords.longitude; document.getElementById('input_lat').value=lat; document.getElementById('input_lng').value=lng; let f=new FormData(); f.append('filial_id',document.querySelector('input[name="filial_id"]').value); f.append('lat',lat); f.append('lng',lng); fetch(ROTA_FRETE_GPS, { method: 'POST', body: f }).then(r=>r.json()).then(d=>{ if(d.ok){ btn.innerHTML='<i class="fas fa-check"></i> Localizado'; document.getElementById('input_taxa_entrega').value=d.valor; if(d.endereco_sugerido) { document.getElementById('input_end').value=d.endereco_sugerido.rua; document.getElementById('input_num').value=d.endereco_sugerido.numero; } salvarEnderecoLocal(d.endereco_sugerido?.rua,d.endereco_sugerido?.numero,'',lat,lng,d.valor); calcularTotalFinal(); } else { alert(d.erro); btn.innerHTML='Usar localização atual'; } }); }, ()=>{ alert("Permita o GPS"); btn.innerHTML='Usar localização atual'; }); }
+  function usarLocalizacaoAtual() { 
+        const btn = document.querySelector('button[onclick="usarLocalizacaoAtual()"]'); 
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Localizando...'; 
+        
+        if(!navigator.geolocation) { 
+            alert("Seu navegador não suporta GPS."); 
+            btn.innerHTML = '<i class="fas fa-location-arrow"></i> Usar localização atual';
+            return; 
+        } 
 
+        navigator.geolocation.getCurrentPosition(p => { 
+            const lat = p.coords.latitude, lng = p.coords.longitude; 
+            document.getElementById('input_lat').value = lat; 
+            document.getElementById('input_lng').value = lng; 
+
+            // --- NOVO: REVERSE GEOCODING (Busca o nome da rua pelo GPS) ---
+            if (typeof google === 'object' && typeof google.maps === 'object') {
+                const geocoder = new google.maps.Geocoder();
+                geocoder.geocode({ location: { lat: lat, lng: lng } }, (results, status) => {
+                    if (status === "OK" && results[0]) {
+                        let rua = '', bairro = '';
+                        results[0].address_components.forEach(c => {
+                            if (c.types.includes('route')) rua = c.long_name;
+                            if (c.types.includes('sublocality_level_1') || c.types.includes('sublocality')) bairro = c.long_name;
+                        });
+
+                        // Preenche rua e bairro automaticamente
+                        document.getElementById('input_end').value = rua;
+                        document.getElementById('input_bairro').value = bairro;
+                        
+                        // Limpa o número e complemento para OBRIGAR a digitar
+                        document.getElementById('input_num').value = '';
+                        document.getElementById('input_comp').value = '';
+                        
+                        // Foca no campo de número
+                        document.getElementById('input_num').focus();
+                    }
+                });
+            }
+            // --------------------------------------------------------------
+
+            let f = new FormData(); 
+            f.append('filial_id', document.querySelector('input[name="filial_id"]').value); 
+            f.append('lat', lat); 
+            f.append('lng', lng); 
+            
+            fetch(ROTA_FRETE_GPS, { method: 'POST', body: f })
+            .then(r => r.json())
+            .then(d => { 
+                if(d.ok) { 
+                    btn.innerHTML = '<i class="fas fa-check"></i> Localizado com sucesso'; 
+                    document.getElementById('input_taxa_entrega').value = d.valor; 
+                    calcularTotalFinal(); 
+                } else { 
+                    alert(d.erro); 
+                    btn.innerHTML = '<i class="fas fa-location-arrow"></i> Usar localização atual'; 
+                } 
+            }); 
+        }, () => { 
+            alert("Permita o acesso ao GPS no seu navegador para usar esta função."); 
+            btn.innerHTML = '<i class="fas fa-location-arrow"></i> Usar localização atual'; 
+        }); 
+    }
     // --- NOVA FUNÇÃO DE CONTA (COM ABAS SEMPRE ATIVAS E TOTAIS NO RODAPÉ) ---
     function verContaMesa() {
         if(!dadosMesa) return;

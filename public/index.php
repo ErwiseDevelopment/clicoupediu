@@ -6,6 +6,39 @@ error_reporting(E_ALL);
 
 require_once __DIR__ . '/../app/config.php';
 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Se a sessão caiu, mas o cookie de "Lembrar-me" existe, restaura antes de qualquer Controller rodar!
+if (!isset($_SESSION['usuario_id']) && isset($_COOKIE['admin_token'])) {
+    $tokenHash = hash('sha256', $_COOKIE['admin_token']);
+    
+    // Conecta direto ao banco
+    $db = \App\Core\Database::connect();
+    $stmt = $db->prepare("
+        SELECT u.id, u.nome, u.empresa_id, e.slug 
+        FROM user_sessions us
+        INNER JOIN usuarios u ON us.user_id = u.id
+        LEFT JOIN empresas e ON u.empresa_id = e.id
+        WHERE us.token_hash = ? 
+        LIMIT 1
+    ");
+    $stmt->execute([$tokenHash]);
+    $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+    if ($user) {
+        // Restaura a sessão para o sistema inteiro!
+        $_SESSION['usuario_id'] = $user['id'];
+        $_SESSION['usuario_nome'] = $user['nome'];
+        $_SESSION['empresa_id'] = $user['empresa_id'];
+        $_SESSION['empresa_slug'] = $user['slug'] ?? '';
+    } else {
+        // Cookie falso ou expirado no banco, destrói o cookie
+        setcookie('admin_token', '', time() - 3600, '/');
+    }
+}
+
 // 2. AUTOLOAD
 spl_autoload_register(function ($class) {
     $prefix = 'App\\';

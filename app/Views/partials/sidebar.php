@@ -164,27 +164,26 @@ function menuAtivo($url_atual, $rota) {
     </div>
 </aside>
 
-<div class="md:hidden fixed bottom-0 left-0 w-full bg-white h-16 border-t border-slate-200 z-[90] flex items-center justify-around px-2 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-    <a href="<?= BASE_URL ?>/admin/dashboard" class="flex flex-col items-center gap-1 <?= menuAtivo($url_atual, 'dashboard') ? 'text-indigo-600' : 'text-slate-400' ?>">
-        <i class="fas fa-chart-line text-lg"></i>
-        <span class="text-[9px] font-black uppercase">Início</span>
-    </a>
-    <a href="<?= BASE_URL ?>/admin/pedidos" class="flex flex-col items-center gap-1 <?= (strpos($url_atual, 'pedidos') !== false && strpos($url_atual, 'novo') === false) ? 'text-orange-500' : 'text-slate-400' ?>">
-        <i class="fas fa-desktop text-lg"></i>
-        <span class="text-[9px] font-black uppercase">Pedidos</span>
+<div class="md:hidden fixed bottom-0 left-0 w-full bg-white h-[68px] border-t border-slate-200 z-[90] grid grid-cols-4 shadow-[0_-10px_30px_rgba(0,0,0,0.06)]" style="padding-bottom: env(safe-area-inset-bottom);">
+    
+    <a href="<?= BASE_URL ?>/admin/dashboard" class="flex flex-col items-center justify-center h-full gap-1 pt-1 <?= (strpos($url_atual, 'dashboard') !== false) ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600' ?>">
+        <i class="fas fa-chart-line text-[20px]"></i>
+        <span class="text-[9px] font-black uppercase tracking-wide">Início</span>
     </a>
     
-    <button type="button" onclick="abrirModalVenda()" class="bg-indigo-600 text-white w-12 h-12 rounded-full flex items-center justify-center -mt-8 shadow-lg shadow-indigo-200 border-4 border-white active:scale-95 transition-transform">
-        <i class="fas fa-plus text-lg"></i>
-    </button>
-
-    <a href="<?= BASE_URL ?>/admin/produtos" class="flex flex-col items-center gap-1 <?= menuAtivo($url_atual, 'produtos') ? 'text-indigo-600' : 'text-slate-400' ?>">
-        <i class="fas fa-hamburger text-lg"></i>
-        <span class="text-[9px] font-black uppercase">Itens</span>
+    <a href="<?= BASE_URL ?>/admin/pedidos" class="flex flex-col items-center justify-center h-full gap-1 pt-1 <?= (strpos($url_atual, 'pedidos') !== false && strpos($url_atual, 'novo') === false) ? 'text-orange-500' : 'text-slate-400 hover:text-slate-600' ?>">
+        <i class="fas fa-desktop text-[20px]"></i>
+        <span class="text-[9px] font-black uppercase tracking-wide">Pedidos</span>
     </a>
-    <button id="btnOpenMenuFooter" class="flex flex-col items-center gap-1 text-slate-400">
-        <i class="fas fa-bars text-lg"></i>
-        <span class="text-[9px] font-black uppercase">Menu</span>
+
+    <a href="<?= BASE_URL ?>/admin/produtos" class="flex flex-col items-center justify-center h-full gap-1 pt-1 <?= (strpos($url_atual, 'produtos') !== false) ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600' ?>">
+        <i class="fas fa-hamburger text-[20px]"></i>
+        <span class="text-[9px] font-black uppercase tracking-wide">Itens</span>
+    </a>
+    
+    <button id="btnOpenMenuFooter" class="flex flex-col items-center justify-center h-full gap-1 pt-1 text-slate-400 hover:text-slate-600 focus:outline-none">
+        <i class="fas fa-bars text-[20px]"></i>
+        <span class="text-[9px] font-black uppercase tracking-wide">Menu</span>
     </button>
 </div>
 
@@ -224,8 +223,10 @@ function menuAtivo($url_atual, $rota) {
 <style>
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    
+    /* Previne que o menu mobile cubra o conteúdo final da tela */
     @media (max-width: 768px) {
-        main { padding-bottom: 80px !important; }
+        main { padding-bottom: 90px !important; }
         aside#sidebar { top: 0; height: 100vh; }
     }
 </style>

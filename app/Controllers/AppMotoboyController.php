@@ -5,9 +5,45 @@ use PDO;
 
 class AppMotoboyController {
 
-    public function index() {
+    // Palavra-chave secreta para gerar o Hash de segurança (Nunca mude isso, senão desloga todo mundo)
+    private $chaveSecreta = "MotoDelivery2026!@#MK";
+
+    // --- FUNÇÃO DE SEGURANÇA: Restaura sessão via Cookie + Validação de Hash ---
+    private function verificarOuRestaurarLogin() {
         if (session_status() === PHP_SESSION_NONE) session_start();
-        if (isset($_SESSION['motoboy_id'])) {
+        
+        // Se não tem sessão, mas tem os cookies salvos, tenta validar
+        if (!isset($_SESSION['motoboy_id']) && isset($_COOKIE['moto_id']) && isset($_COOKIE['moto_hash'])) {
+            
+            $db = Database::connect();
+            $stmt = $db->prepare("SELECT id, nome, empresa_id, whatsapp FROM motoboys WHERE id = ? AND ativo = 1 LIMIT 1");
+            $stmt->execute([$_COOKIE['moto_id']]);
+            $moto = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($moto) {
+                // Recalcula o hash com os dados do banco para ver se o cookie não foi falsificado
+                $hashReal = hash('sha256', $moto['id'] . $moto['whatsapp'] . $this->chaveSecreta);
+                
+                // Se o hash do cookie for idêntico ao real, o login é legítimo!
+                if (hash_equals($hashReal, $_COOKIE['moto_hash'])) {
+                    $_SESSION['motoboy_id'] = $moto['id'];
+                    $_SESSION['motoboy_nome'] = $moto['nome'];
+                    $_SESSION['empresa_id'] = $moto['empresa_id'];
+                    return true;
+                }
+            }
+            
+            // Se chegou aqui, o cookie é falso, o hash não bateu ou o motoboy foi desativado. 
+            // Limpamos os cookies invasores.
+            setcookie('moto_id', '', time() - 3600, '/');
+            setcookie('moto_hash', '', time() - 3600, '/');
+        }
+        
+        return isset($_SESSION['motoboy_id']);
+    }
+
+    public function index() {
+        if ($this->verificarOuRestaurarLogin()) {
             header('Location: ' . BASE_URL . '/app-motoboy/painel');
             exit;
         }
@@ -25,9 +61,19 @@ class AppMotoboyController {
         $motoboy = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($motoboy) {
+            // Cria a sessão padrão
             $_SESSION['motoboy_id'] = $motoboy['id'];
             $_SESSION['motoboy_nome'] = $motoboy['nome'];
             $_SESSION['empresa_id'] = $motoboy['empresa_id'];
+
+            // === CRIAÇÃO DO COOKIE COM HASH DE SEGURANÇA ===
+            $hashValidacao = hash('sha256', $motoboy['id'] . $motoboy['whatsapp'] . $this->chaveSecreta);
+            $umAno = time() + (365 * 24 * 60 * 60); 
+            
+            setcookie('moto_id', $motoboy['id'], $umAno, '/');
+            setcookie('moto_hash', $hashValidacao, $umAno, '/');
+            // ===============================================
+
             header('Location: ' . BASE_URL . '/app-motoboy/painel');
         } else {
             header('Location: ' . BASE_URL . '/app-motoboy?erro=nao_encontrado');
@@ -35,9 +81,12 @@ class AppMotoboyController {
         exit;
     }
 
-   public function painel() {
-        if (session_status() === PHP_SESSION_NONE) session_start();
-        if (!isset($_SESSION['motoboy_id'])) { header('Location: ' . BASE_URL . '/app-motoboy'); exit; }
+    public function painel() {
+        // Usa a nova função que blinda contra queda de sessão e valida o Hash
+        if (!$this->verificarOuRestaurarLogin()) { 
+            header('Location: ' . BASE_URL . '/app-motoboy'); 
+            exit; 
+        }
 
         $id = $_SESSION['motoboy_id'];
         $empresaId = $_SESSION['empresa_id'];
@@ -48,7 +97,6 @@ class AppMotoboyController {
         $stmtLoja->execute([$empresaId]);
         $loja = $stmtLoja->fetch(PDO::FETCH_ASSOC);
 
-        // Garante que lat/lng sejam float e troca vírgula por ponto
         $latLoja = $this->fixCoord($loja['lat'] ?? -23.5505);
         $lngLoja = $this->fixCoord($loja['lng'] ?? -46.6333);
         $enderecoLoja = $loja['endereco_completo'] ?? "Loja";
@@ -64,12 +112,11 @@ class AppMotoboyController {
         $semGPS = [];
 
         foreach ($todosPedidos as $p) {
-            // Verifica se tem coordenada válida (diferente de 0 e não vazia)
             $lat = $this->fixCoord($p['lat_entrega']);
             $lng = $this->fixCoord($p['lng_entrega']);
 
             if ($lat != 0 && $lng != 0) {
-                $p['lat_entrega'] = $lat; // Atualiza com o valor corrigido
+                $p['lat_entrega'] = $lat;
                 $p['lng_entrega'] = $lng;
                 $comGPS[] = $p;
             } else {
@@ -80,7 +127,6 @@ class AppMotoboyController {
         $rotaOrdenada = [];
         $pontoAtual = ['lat' => $latLoja, 'lng' => $lngLoja];
 
-        // Loop de Ordenação
         while (count($comGPS) > 0) {
             $melhorIndex = null;
             $menorDistancia = PHP_FLOAT_MAX;
@@ -98,33 +144,24 @@ class AppMotoboyController {
                 $escolhido = $comGPS[$melhorIndex];
                 $rotaOrdenada[] = $escolhido;
                 
-                // O ponto atual vira o destino deste pedido
                 $pontoAtual = ['lat' => $escolhido['lat_entrega'], 'lng' => $escolhido['lng_entrega']];
                 
                 unset($comGPS[$melhorIndex]);
-                $comGPS = array_values($comGPS); // Reindexa
+                $comGPS = array_values($comGPS); 
             } else {
                 break;
             }
         }
 
-        // 4. JUNTAR TUDO NA VARIÁVEL FINAL (IMPORTANTE)
-        // Pedidos ordenados primeiro + Pedidos sem GPS no final
         $entregas = array_merge($rotaOrdenada, $semGPS);
-
-        // 5. GERAÇÃO DO LINK COM PARADAS (WAYPOINTS)
         $linkRotaCompleta = "";
         
-        // Só gera rota se tiver pelo menos 1 pedido COM GPS
         if (count($rotaOrdenada) > 0) {
             $origin = "{$latLoja},{$lngLoja}";
-            
-            // O destino final é o ÚLTIMO pedido da lista ordenada
             $ultimoPedido = end($rotaOrdenada);
             $destination = "{$ultimoPedido['lat_entrega']},{$ultimoPedido['lng_entrega']}";
             
             $waypoints = [];
-            // Percorre todos MENOS o último (que já é o destino)
             $totalParadas = count($rotaOrdenada);
             
             if ($totalParadas > 1) {
@@ -134,7 +171,6 @@ class AppMotoboyController {
                 }
             }
 
-            // Monta a URL Oficial do Google Maps Universal
             $params = [
                 'api' => 1,
                 'origin' => $origin,
@@ -152,13 +188,11 @@ class AppMotoboyController {
         require __DIR__ . '/../Views/motoboy/painel.php';
     }
 
-    // Auxiliar para limpar coordenadas (Troca vírgula por ponto e converte pra float)
     private function fixCoord($valor) {
         if(empty($valor)) return 0.0;
         return floatval(str_replace(',', '.', (string)$valor));
     }
 
-    // Mantido o cálculo de distância...
     private function calcularDistancia($lat1, $lon1, $lat2, $lon2) {
         if (($lat1 == $lat2) && ($lon1 == $lon2)) return 0;
         $theta = $lon1 - $lon2;
@@ -168,13 +202,13 @@ class AppMotoboyController {
         return ($dist * 60 * 1.1515 * 1.609344);
     }
 
-   
-
     public function finalizar() {
-        if (session_status() === PHP_SESSION_NONE) session_start();
         header('Content-Type: application/json');
-
-        if (!isset($_SESSION['motoboy_id'])) { echo json_encode(['ok'=>false, 'erro'=>'Sessão expirada']); exit; }
+        
+        if (!$this->verificarOuRestaurarLogin()) { 
+            echo json_encode(['ok'=>false, 'erro'=>'Sessão expirada. Recarregue a página.']); 
+            exit; 
+        }
 
         $pedidoId = $_POST['id'];
         $motoboyId = $_SESSION['motoboy_id'];
@@ -201,6 +235,11 @@ class AppMotoboyController {
     public function sair() {
         if (session_status() === PHP_SESSION_NONE) session_start();
         session_destroy();
+
+        // Destrói os cookies de segurança
+        setcookie('moto_id', '', time() - 3600, '/');
+        setcookie('moto_hash', '', time() - 3600, '/');
+
         header('Location: ' . BASE_URL . '/app-motoboy');
     }
 }
