@@ -10,12 +10,12 @@ class DashboardController {
         $empresaId = $_SESSION['empresa_id'];
         $db = Database::connect();
 
-        // 1. CAPTURA O FILTRO DE DATA
-        $dataInicio = $_GET['data_inicio'] ?? date('Y-m-d');
-        $dataFim    = $_GET['data_fim'] ?? date('Y-m-d');
+        $dataInicio = $_GET['data_inicio'] ?? date('Y-m-01');
+        $dataFim    = $_GET['data_fim'] ?? date('Y-m-t');
+        $dataFimDateTime = $dataFim . ' 23:59:59'; 
 
         // =========================================================================
-        // 2. INDICADORES FINANCEIROS BÁSICOS
+        // 1. INDICADORES FINANCEIROS BÁSICOS E PERDAS (CANCELAMENTOS)
         // =========================================================================
         
         $sqlVendas = "SELECT SUM(valor_total) FROM pedidos WHERE empresa_id = ? AND status != 'cancelado' AND DATE(created_at) BETWEEN ? AND ?";
@@ -40,8 +40,12 @@ class DashboardController {
         $stmtP->execute([$empresaId, $dataInicio, $dataFim]);
         $aPagar = $stmtP->fetchColumn() ?: 0;
 
+        $stmtCanc = $db->prepare("SELECT COUNT(id) as qtd, SUM(valor_total) as valor FROM pedidos WHERE empresa_id = ? AND status = 'cancelado' AND DATE(created_at) BETWEEN ? AND ?");
+        $stmtCanc->execute([$empresaId, $dataInicio, $dataFim]);
+        $dadosCancelados = $stmtCanc->fetch(\PDO::FETCH_ASSOC);
+
         // =========================================================================
-        // 3. GRÁFICOS FINANCEIROS
+        // 2. GRÁFICOS DIÁRIOS E VENDAS
         // =========================================================================
         
         $fluxoCaixa = [];
@@ -55,20 +59,14 @@ class DashboardController {
             $s1->execute([$empresaId, $dia]);
             $ent = $s1->fetchColumn() ?: 0;
 
-            $s2 = $db->prepare("SELECT SUM(valor) FROM contas_pagar WHERE empresa_id = ? AND status = 'pago' AND DATE(data_vencimento) = ?");
-            $s2->execute([$empresaId, $dia]);
-            $sai = $s2->fetchColumn() ?: 0;
-
-            if($ent > 0 || $sai > 0 || $dataInicio == $dataFim) {
-                $fluxoCaixa[] = ['data' => $currentDate->format('d/m'), 'entrada' => $ent, 'saida' => $sai];
+            if($ent > 0 || $dataInicio == $dataFim) {
+                $fluxoCaixa[] = ['data' => $currentDate->format('d/m'), 'faturamento' => $ent];
             }
             $currentDate->modify('+1 day');
         }
 
         $sqlTop = "SELECT p.nome, SUM(pi.total) as total_faturado, SUM(pi.quantidade) as qtd 
-                   FROM pedido_itens pi
-                   JOIN pedidos ped ON pi.pedido_id = ped.id
-                   JOIN produtos p ON pi.produto_id = p.id
+                   FROM pedido_itens pi JOIN pedidos ped ON pi.pedido_id = ped.id JOIN produtos p ON pi.produto_id = p.id
                    WHERE ped.empresa_id = ? AND ped.status != 'cancelado' AND DATE(ped.created_at) BETWEEN ? AND ?
                    GROUP BY p.id ORDER BY total_faturado DESC LIMIT 5";
         $stmtTop = $db->prepare($sqlTop);
@@ -94,51 +92,74 @@ class DashboardController {
         $dadosOperacionais = $resumo->fetch(\PDO::FETCH_ASSOC);
 
         // =========================================================================
-        // 4. MÓDULO LOGÍSTICA (MOTOBOYS) E MKT (MARKETING) - NOVO!
+        // 3. INTELIGÊNCIA GEOGRÁFICA E LOGÍSTICA
         // =========================================================================
 
-        // 4.1 Custo Total de Taxas de Entrega Geradas (Valor repassado aos motoboys)
-        $sqlTaxas = "SELECT SUM(taxa_entrega) as total_taxas, COUNT(id) as qtd_entregas 
-                     FROM pedidos WHERE empresa_id = ? AND status != 'cancelado' AND tipo_entrega = 'entrega' 
-                     AND DATE(created_at) BETWEEN ? AND ?";
+        $sqlBairros = "SELECT bairro, COUNT(id) as qtd, SUM(valor_total) as total 
+                       FROM pedidos WHERE empresa_id = ? AND status != 'cancelado' AND tipo_entrega = 'entrega' AND bairro IS NOT NULL AND TRIM(bairro) != '' 
+                       AND DATE(created_at) BETWEEN ? AND ? GROUP BY bairro ORDER BY total DESC LIMIT 6";
+        $stmtBairros = $db->prepare($sqlBairros);
+        $stmtBairros->execute([$empresaId, $dataInicio, $dataFim]);
+        $rankingBairros = $stmtBairros->fetchAll(\PDO::FETCH_ASSOC);
+
+        $sqlTaxas = "SELECT SUM(taxa_entrega) as total_taxas, COUNT(id) as qtd_entregas FROM pedidos WHERE empresa_id = ? AND status != 'cancelado' AND tipo_entrega = 'entrega' AND DATE(created_at) BETWEEN ? AND ?";
         $stmtTaxas = $db->prepare($sqlTaxas);
         $stmtTaxas->execute([$empresaId, $dataInicio, $dataFim]);
         $dadosEntregas = $stmtTaxas->fetch(\PDO::FETCH_ASSOC);
-        $custoEntregas = $dadosEntregas['total_taxas'] ?: 0;
-        $qtdEntregasFeitas = $dadosEntregas['qtd_entregas'] ?: 0;
-
-        // 4.2 Ranking de Produtividade dos Motoboys
-        $sqlMoto = "SELECT m.nome, COUNT(p.id) as qtd, SUM(p.taxa_entrega) as total_repasse 
-                    FROM pedidos p
-                    JOIN motoboys m ON p.motoboy_id = m.id
-                    WHERE p.empresa_id = ? AND p.status != 'cancelado' AND p.tipo_entrega = 'entrega' AND DATE(p.created_at) BETWEEN ? AND ?
-                    GROUP BY m.id ORDER BY total_repasse DESC";
+        
+        $sqlMoto = "SELECT m.nome, COUNT(p.id) as qtd, SUM(p.taxa_entrega) as total_repasse FROM pedidos p JOIN motoboys m ON p.motoboy_id = m.id WHERE p.empresa_id = ? AND p.status != 'cancelado' AND p.tipo_entrega = 'entrega' AND DATE(p.created_at) BETWEEN ? AND ? GROUP BY m.id ORDER BY total_repasse DESC LIMIT 5";
         $stmtMoto = $db->prepare($sqlMoto);
         $stmtMoto->execute([$empresaId, $dataInicio, $dataFim]);
         $rankingMotoboys = $stmtMoto->fetchAll(\PDO::FETCH_ASSOC);
 
-        // 4.3 Modalidades de Pedido (Delivery vs Balcão vs Mesa)
-        $sqlTipoEnt = "SELECT tipo_entrega, COUNT(*) as qtd, SUM(valor_total) as total 
-                       FROM pedidos WHERE empresa_id = ? AND status != 'cancelado' AND DATE(created_at) BETWEEN ? AND ? 
-                       GROUP BY tipo_entrega ORDER BY total DESC";
+        $sqlTipoEnt = "SELECT tipo_entrega, COUNT(*) as qtd, SUM(valor_total) as total FROM pedidos WHERE empresa_id = ? AND status != 'cancelado' AND DATE(created_at) BETWEEN ? AND ? GROUP BY tipo_entrega ORDER BY total DESC";
         $stmtTipoEnt = $db->prepare($sqlTipoEnt);
         $stmtTipoEnt->execute([$empresaId, $dataInicio, $dataFim]);
         $vendasPorTipo = $stmtTipoEnt->fetchAll(\PDO::FETCH_ASSOC);
 
-        // 4.4 Análise de Retenção de Clientes (Marketing)
+        // =========================================================================
+        // 4. CRM E MARKETING AVANÇADO (COM FILTRO RÍGIDO DE CLIENTES REAIS)
+        // =========================================================================
+
+        $filtroClientesReais = " AND cliente_telefone IS NOT NULL 
+                                 AND TRIM(cliente_telefone) != '' 
+                                 AND LENGTH(cliente_telefone) >= 10 
+                                 AND cliente_nome IS NOT NULL 
+                                 AND TRIM(cliente_nome) != '' 
+                                 AND LOWER(TRIM(cliente_nome)) NOT IN ('cliente', 'consumidor', 'balcao', 'balcão', 'mesa', 'diversos', 'avulso') 
+                                 AND cliente_telefone NOT LIKE '%00000000%' 
+                                 AND cliente_telefone NOT LIKE '%11111111%' 
+                                 AND cliente_telefone NOT LIKE '%99999999%' ";
+
         $sqlMkt = "SELECT COUNT(DISTINCT cliente_telefone) as clientes_unicos, COUNT(id) as total_pedidos 
-                   FROM pedidos 
-                   WHERE empresa_id = ? AND status != 'cancelado' AND DATE(created_at) BETWEEN ? AND ? 
-                   AND cliente_telefone IS NOT NULL AND cliente_telefone != ''";
+                   FROM pedidos WHERE empresa_id = ? AND status != 'cancelado' AND DATE(created_at) BETWEEN ? AND ? " . $filtroClientesReais;
         $stmtMkt = $db->prepare($sqlMkt);
         $stmtMkt->execute([$empresaId, $dataInicio, $dataFim]);
         $dadosMkt = $stmtMkt->fetch(\PDO::FETCH_ASSOC);
         
         $clientesUnicos = $dadosMkt['clientes_unicos'] ?: 0;
         $pedidosComTel = $dadosMkt['total_pedidos'] ?: 0;
-        
-        // Se há mais pedidos do que clientes únicos, significa que houve recorrência!
         $taxaRecorrencia = $pedidosComTel > 0 ? (($pedidosComTel - $clientesUnicos) / $pedidosComTel) * 100 : 0;
+
+        // REGRA DE VIP ATUALIZADA: Mais de 10 pedidos! (HAVING qtd > 10)
+        // Nota: O filtro de data foi removido daqui para buscar os verdadeiros VIPs de todo o histórico da loja.
+        $sqlVips = "SELECT cliente_nome, cliente_telefone, COUNT(id) as qtd, SUM(valor_total) as total 
+                    FROM pedidos WHERE empresa_id = ? AND status != 'cancelado' " . $filtroClientesReais . "
+                    GROUP BY cliente_telefone, cliente_nome 
+                    HAVING qtd > 10
+                    ORDER BY total DESC LIMIT 5";
+        $stmtVips = $db->prepare($sqlVips);
+        $stmtVips->execute([$empresaId]);
+        $clientesVip = $stmtVips->fetchAll(\PDO::FETCH_ASSOC);
+
+        $sqlRisco = "SELECT cliente_nome, cliente_telefone, MAX(created_at) as ultimo_pedido, COUNT(id) as qtd, SUM(valor_total) as total_gasto 
+                     FROM pedidos WHERE empresa_id = ? AND status != 'cancelado' AND created_at <= ? " . $filtroClientesReais . "
+                     GROUP BY cliente_telefone, cliente_nome 
+                     HAVING ultimo_pedido < DATE_SUB(?, INTERVAL 10 DAY) 
+                     ORDER BY total_gasto DESC LIMIT 5";
+        $stmtRisco = $db->prepare($sqlRisco);
+        $stmtRisco->execute([$empresaId, $dataFimDateTime, $dataFimDateTime]);
+        $clientesRisco = $stmtRisco->fetchAll(\PDO::FETCH_ASSOC);
 
         require __DIR__ . '/../Views/admin/dashboard.php';
     }
