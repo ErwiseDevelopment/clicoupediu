@@ -396,19 +396,9 @@ else {
     $slug = $url[0];
 
     // Landing Page
+   // Landing Page
     if(empty($slug) || $slug == 'home') {
-        echo '<!DOCTYPE html>
-        <html lang="pt-br">
-        <head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script></head>
-        <body class="bg-gray-100 h-screen flex items-center justify-center">
-            <div class="text-center">
-                <h1 class="text-4xl font-bold text-blue-600 mb-4">Delivery SaaS</h1>
-                <div class="space-x-4">
-                    <a href="'.BASE_URL.'/cadastro" class="bg-green-500 text-white px-6 py-3 rounded font-bold">Criar Loja</a>
-                    <a href="'.BASE_URL.'/admin" class="bg-blue-500 text-white px-6 py-3 rounded font-bold">Login</a>
-                </div>
-            </div>
-        </body></html>';
+        require __DIR__ . '/../app/Views/landing/index.php';
         exit;
     }
 
