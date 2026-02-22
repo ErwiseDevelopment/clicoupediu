@@ -100,6 +100,11 @@ if ($url[0] == 'admin') {
             $metodo = $url[2] ?? 'index';
             if ($metodo == 'salvar') $controller->salvar();
             elseif ($metodo == 'baixarPagamento') $controller->baixarPagamento();
+            // --- NOVAS ROTAS ADICIONADAS ---
+            elseif ($metodo == 'cancelar') $controller->cancelar();
+            elseif ($metodo == 'excluir') $controller->excluir();
+            elseif ($metodo == 'buscarClientes') $controller->buscarClientes();
+            // -------------------------------
             else $controller->index();
             break;
 
@@ -109,9 +114,12 @@ if ($url[0] == 'admin') {
             if ($metodo == 'salvar') $controller->salvar();
             elseif ($metodo == 'buscarFornecedores') $controller->buscarFornecedores();
             elseif ($metodo == 'pagar') $controller->pagar();
+            // --- NOVAS ROTAS ADICIONADAS ---
+            elseif ($metodo == 'cancelar') $controller->cancelar();
+            elseif ($metodo == 'excluir') $controller->excluir();
+            // -------------------------------
             else $controller->index();
             break;
-
         case 'categorias-financeiro':
             $ctrl = new \App\Controllers\CategoriaFinanceiraController();
             $sub = $url[2] ?? 'index';
