@@ -2,7 +2,6 @@
 namespace App\Controllers;
 
 use App\Models\ContasPagar;
-use App\Models\CategoriaFinanceira;
 use App\Core\Database;
 
 class ContasPagarController {
@@ -17,9 +16,8 @@ class ContasPagarController {
         $model = new ContasPagar();
         $titulos = $model->listar($empresaId, ['inicio' => $inicio, 'fim' => $fim, 'busca' => $_GET['busca'] ?? '']);
         $resumo = $model->getTotais($empresaId);
-
-        $catModel = new CategoriaFinanceira();
-        $categorias = $catModel->listarPorTipo($empresaId, 'saida');
+        
+        $categorias = [['descricao' => 'Aluguel'], ['descricao' => 'Fornecedor'], ['descricao' => 'Impostos'], ['descricao' => 'Salários']];
 
         require __DIR__ . '/../Views/admin/financeiro/contas_pagar.php';
     }
@@ -33,8 +31,8 @@ class ContasPagarController {
         $empresaId = $_SESSION['empresa_id'];
 
         $db = Database::connect();
-        $stmt = $db->prepare("SELECT id, nome, telefone FROM fornecedores WHERE empresa_id = ? AND nome LIKE ? LIMIT 5");
-        $stmt->execute([$empresaId, "%$termo%"]);
+        $stmt = $db->prepare("SELECT id, nome, telefone FROM fornecedores WHERE empresa_id = ? AND (nome LIKE ? OR telefone LIKE ?) LIMIT 5");
+        $stmt->execute([$empresaId, "%$termo%", "%$termo%"]);
         
         echo json_encode($stmt->fetchAll(\PDO::FETCH_ASSOC));
         exit;
@@ -49,29 +47,23 @@ class ContasPagarController {
             $db = Database::connect();
             $empresaId = $_SESSION['empresa_id'];
             
-            $id = $_POST['id'] ?? null; // ID para Edição
+            $id = $_POST['id'] ?? null;
             $nome = $_POST['fornecedor_nome'];
             $fornecedorId = $_POST['fornecedor_id'] ?? null;
 
-            // Lógica de Fornecedor (Cria se não existir)
+            // Cria fornecedor se não existir
             if (empty($fornecedorId) && !empty($nome)) {
-                $check = $db->prepare("SELECT id FROM fornecedores WHERE empresa_id = ? AND nome = ?");
-                $check->execute([$empresaId, $nome]);
-                $existente = $check->fetch();
-
-                if ($existente) {
-                    $fornecedorId = $existente['id'];
-                } else {
-                    $db->prepare("INSERT INTO fornecedores (empresa_id, nome) VALUES (?, ?)")
-                       ->execute([$empresaId, $nome]);
-                    $fornecedorId = $db->lastInsertId();
-                }
+                $sqlForn = "INSERT INTO fornecedores (empresa_id, nome) VALUES (?, ?)";
+                $db->prepare($sqlForn)->execute([$empresaId, $nome]);
+                $fornecedorId = $db->lastInsertId();
             }
 
-            $valor = str_replace(['.', ','], ['', '.'], $_POST['valor']);
+            $valorRaw = $_POST['valor'] ?? '0,00';
+            $valor = str_replace(['.', ','], ['', '.'], $valorRaw);
+            $parcelas = isset($_POST['parcelas']) ? (int)$_POST['parcelas'] : 1;
 
             if ($id) {
-                // --- EDIÇÃO (UPDATE) ---
+                // UPDATE (Apenas o título atual, não afeta outras parcelas)
                 $sql = "UPDATE contas_pagar SET 
                         fornecedor_id=?, fornecedor_nome=?, valor=?, status=?, 
                         forma_pagamento=?, categoria=?, observacoes=?, data_vencimento=?, updated_at=NOW()
@@ -82,16 +74,24 @@ class ContasPagarController {
                     $_POST['data_vencimento'], $id, $empresaId
                 ]);
             } else {
-                // --- CRIAÇÃO (INSERT) ---
+                // INSERT COM RECORRÊNCIA
+                $dataBase = $_POST['data_vencimento'] ?? date('Y-m-d');
                 $sql = "INSERT INTO contas_pagar (
                             empresa_id, fornecedor_id, fornecedor_nome, valor, status, 
                             forma_pagamento, categoria, observacoes, data_vencimento, created_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-                $db->prepare($sql)->execute([
-                    $empresaId, $fornecedorId, $nome, $valor, $_POST['status'],
-                    $_POST['forma_pagamento'], $_POST['categoria'], $_POST['observacoes'],
-                    $_POST['data_vencimento'] ?? date('Y-m-d')
-                ]);
+                $stmt = $db->prepare($sql);
+
+                for ($i = 0; $i < $parcelas; $i++) {
+                    $vencimentoAtual = date('Y-m-d', strtotime("+$i months", strtotime($dataBase)));
+                    $obsParcela = $parcelas > 1 ? $_POST['observacoes'] . " (Parcela " . ($i + 1) . "/$parcelas)" : $_POST['observacoes'];
+                    
+                    $stmt->execute([
+                        $empresaId, $fornecedorId, $nome, $valor, $_POST['status'],
+                        $_POST['forma_pagamento'] ?? 'dinheiro', $_POST['categoria'] ?? 'Geral',
+                        $obsParcela ?? '', $vencimentoAtual
+                    ]);
+                }
             }
 
             echo json_encode(['ok' => true]);
@@ -106,6 +106,18 @@ class ContasPagarController {
         $id = $_POST['id'];
         $db = Database::connect();
         $db->prepare("UPDATE contas_pagar SET status = 'pago' WHERE id = ? AND empresa_id = ?")
+           ->execute([$id, $_SESSION['empresa_id']]);
+        
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    public function cancelar() {
+        $this->verificarLogin();
+        $id = $_POST['id'];
+        $db = Database::connect();
+        $db->prepare("UPDATE contas_pagar SET status = 'cancelado' WHERE id = ? AND empresa_id = ?")
            ->execute([$id, $_SESSION['empresa_id']]);
         
         header('Content-Type: application/json');

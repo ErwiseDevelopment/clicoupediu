@@ -2,7 +2,6 @@
 namespace App\Controllers;
 
 use App\Models\ContasReceber;
-use App\Models\CategoriaFinanceira; // Assumindo que você tenha ou use string pura
 use App\Core\Database;
 
 class FinanceiroController {
@@ -18,10 +17,7 @@ class FinanceiroController {
         $titulos = $model->listar($empresaId, ['inicio' => $inicio, 'fim' => $fim, 'busca' => $_GET['busca'] ?? '']);
         $resumo = $model->getTotais($empresaId);
         
-        // Se tiver categorias de entrada no banco, carregue aqui. Se for fixo na view, tudo bem.
-        // $catModel = new CategoriaFinanceira();
-        // $categorias = $catModel->listarPorTipo($empresaId, 'entrada');
-        $categorias = [['descricao' => 'Serviço'], ['descricao' => 'Produto']]; // Exemplo
+        $categorias = [['descricao' => 'Serviço'], ['descricao' => 'Produto']]; 
 
         require __DIR__ . '/../Views/admin/financeiro/contas_receber.php';
     }
@@ -51,12 +47,11 @@ class FinanceiroController {
             $db = Database::connect();
             $empresaId = $_SESSION['empresa_id'];
             
-            $id = $_POST['id'] ?? null; // ID para Edição
+            $id = $_POST['id'] ?? null; 
             $nome = $_POST['cliente_nome'];
             $telefone = $_POST['telefone'];
             $clienteId = $_POST['cliente_id'] ?? null;
 
-            // Cria cliente se não existir
             if (empty($clienteId) && !empty($nome)) {
                 $check = $db->prepare("SELECT id FROM clientes WHERE empresa_id = ? AND telefone = ? LIMIT 1");
                 $check->execute([$empresaId, $telefone]);
@@ -75,7 +70,6 @@ class FinanceiroController {
             $valor = str_replace(['.', ','], ['', '.'], $valorRaw);
 
             if ($id) {
-                // --- UPDATE ---
                 $sql = "UPDATE contas_receber SET 
                         cliente_id=?, cliente_nome=?, valor=?, status=?, 
                         forma_pagamento=?, categoria=?, observacoes=?, data_vencimento=?, updated_at=NOW()
@@ -86,7 +80,6 @@ class FinanceiroController {
                     $_POST['data_vencimento'], $id, $empresaId
                 ]);
             } else {
-                // --- INSERT ---
                 $sql = "INSERT INTO contas_receber (
                             empresa_id, cliente_id, cliente_nome, valor, status, 
                             forma_pagamento, categoria, observacoes, data_vencimento, created_at
@@ -110,6 +103,18 @@ class FinanceiroController {
         $id = $_POST['id'];
         $db = Database::connect();
         $db->prepare("UPDATE contas_receber SET status = 'pago' WHERE id = ? AND empresa_id = ?")
+           ->execute([$id, $_SESSION['empresa_id']]);
+        
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+
+    public function cancelar() {
+        $this->verificarLogin();
+        $id = $_POST['id'];
+        $db = Database::connect();
+        $db->prepare("UPDATE contas_receber SET status = 'cancelado' WHERE id = ? AND empresa_id = ?")
            ->execute([$id, $_SESSION['empresa_id']]);
         
         header('Content-Type: application/json');

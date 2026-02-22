@@ -30,7 +30,7 @@
                 </div>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <span class="text-gray-400 text-[10px] font-black uppercase tracking-widest">Recebido Hoje</span>
+                <span class="text-gray-400 text-[10px] font-black uppercase tracking-widest">Recebido Total</span>
                 <p class="text-3xl font-black text-green-600 mt-1">R$ <?php echo number_format($resumo['total_pago'] ?? 0, 2, ',', '.'); ?></p>
             </div>
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -57,12 +57,12 @@
                     <tr class="hover:bg-gray-50/80 transition group">
                         <td class="p-5">
                             <div class="flex flex-col">
-                                <span class="font-bold text-gray-800 text-sm"><?php echo $t['cliente_nome']; ?></span>
+                                <span class="font-bold <?php echo $t['status'] == 'cancelado' ? 'text-gray-400 line-through' : 'text-gray-800'; ?> text-sm"><?php echo $t['cliente_nome']; ?></span>
                                 <?php $tel = $t['cliente_whatsapp'] ?? $t['telefone'] ?? ''; ?>
                                 <span class="text-[10px] text-gray-400 font-medium"><?php echo $tel ? $tel : 'S/ Telefone'; ?></span>
                             </div>
                         </td>
-                        <td class="p-5 font-black text-gray-900">R$ <?php echo number_format($t['valor'], 2, ',', '.'); ?></td>
+                        <td class="p-5 font-black <?php echo $t['status'] == 'cancelado' ? 'text-gray-400' : 'text-gray-900'; ?>">R$ <?php echo number_format($t['valor'], 2, ',', '.'); ?></td>
                         <td class="p-5">
                             <div class="flex flex-col gap-1">
                                 <span class="px-2 py-1 rounded w-fit text-[10px] font-bold uppercase <?php echo $t['forma_pagamento'] == 'fiado' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'; ?>">
@@ -76,6 +76,8 @@
                         <td class="p-5">
                             <?php if($t['status'] == 'pago'): ?>
                                 <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-green-100 text-green-600">PAGO</span>
+                            <?php elseif($t['status'] == 'cancelado'): ?>
+                                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-gray-200 text-gray-500">CANCELADO</span>
                             <?php else: ?>
                                 <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-orange-100 text-orange-600">PENDENTE</span>
                             <?php endif; ?>
@@ -94,8 +96,13 @@
                                 </button>
 
                                 <?php if($t['status'] == 'pendente'): ?>
+                                    <button onclick="cancelarTitulo(<?php echo $t['id']; ?>)" 
+                                            class="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 flex items-center justify-center transition" title="Cancelar Título">
+                                        <i class="fas fa-ban text-xs"></i>
+                                    </button>
+
                                     <?php $zap = preg_replace('/\D/', '', $tel); if($zap): ?>
-                                    <a href="https://wa.me/55<?php echo $zap; ?>?text=Olá+<?php echo urlencode($t['cliente_nome']); ?>,+lembrete+do+débito+de+R$+<?php echo number_format($t['valor'], 2, ',', '.'); ?>." target="_blank" class="w-8 h-8 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 flex items-center justify-center transition">
+                                    <a href="https://wa.me/55<?php echo $zap; ?>?text=Olá+<?php echo urlencode($t['cliente_nome']); ?>,+lembrete+do+débito+de+R$+<?php echo number_format($t['valor'], 2, ',', '.'); ?>." target="_blank" class="w-8 h-8 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 flex items-center justify-center transition" title="Cobrar WhatsApp">
                                         <i class="fab fa-whatsapp text-xs"></i>
                                     </a>
                                     <?php endif; ?>
@@ -127,7 +134,7 @@
             <div class="space-y-5">
                 <div class="relative">
                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Cliente</label>
-                    <input type="text" id="busca_cliente" name="cliente_nome" autocomplete="off"
+                    <input type="text" id="busca_cliente" name="cliente_nome" autocomplete="off" required
                            class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:bg-white outline-none font-bold text-gray-700 transition"
                            placeholder="Buscar..." onkeyup="buscarClienteAPI(this.value)">
                     <div id="lista_clientes" class="absolute w-full bg-white border border-gray-100 shadow-xl rounded-xl mt-1 hidden z-50 max-h-48 overflow-y-auto"></div>
@@ -154,7 +161,7 @@
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Vencimento</label>
-                        <input type="date" name="data_vencimento" id="input_vencimento" value="<?php echo date('Y-m-d'); ?>" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none font-bold text-gray-600">
+                        <input type="date" name="data_vencimento" id="input_vencimento" required value="<?php echo date('Y-m-d'); ?>" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none font-bold text-gray-600">
                     </div>
                 </div>
 
@@ -173,6 +180,7 @@
                         <select name="status" id="input_status" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none font-bold text-gray-600">
                             <option value="pendente">Pendente</option>
                             <option value="pago">Já Pago</option>
+                            <option value="cancelado">Cancelado</option>
                         </select>
                     </div>
                 </div>
@@ -192,7 +200,6 @@
 </div>
 
 <script>
-// --- FUNÇÕES DE INTERFACE ---
 function abrirModalForm(editar = false) {
     document.getElementById('modalForm').classList.remove('hidden');
     if(!editar) {
@@ -203,13 +210,11 @@ function abrirModalForm(editar = false) {
 }
 function fecharModalForm() { document.getElementById('modalForm').classList.add('hidden'); }
 
-// --- PREENCHER EDIÇÃO ---
 function editarTitulo(t) {
     document.getElementById('input_id').value = t.id;
     document.getElementById('input_cliente_id').value = t.cliente_id;
     document.getElementById('busca_cliente').value = t.cliente_nome;
     
-    // Tenta pegar telefone do objeto ou do join
     let tel = t.cliente_whatsapp || t.telefone || '';
     document.getElementById('input_telefone').value = tel;
 
@@ -226,7 +231,6 @@ function editarTitulo(t) {
     abrirModalForm(true);
 }
 
-// --- SALVAR ---
 function salvarTitulo(e) {
     e.preventDefault();
     fetch('<?php echo BASE_URL; ?>/admin/financeiro/salvar', {
@@ -236,7 +240,6 @@ function salvarTitulo(e) {
     });
 }
 
-// --- AÇÕES ---
 function baixarTitulo(id) {
     if(!confirm('Confirmar recebimento deste valor?')) return;
     const fd = new FormData(); fd.append('id', id);
@@ -245,15 +248,22 @@ function baixarTitulo(id) {
     }).then(r => r.json()).then(d => { if(d.ok) location.reload(); });
 }
 
+function cancelarTitulo(id) {
+    if(!confirm('Tem certeza que deseja cancelar esta cobrança?')) return;
+    const fd = new FormData(); fd.append('id', id);
+    fetch('<?php echo BASE_URL; ?>/admin/financeiro/cancelar', {
+        method: 'POST', body: fd
+    }).then(r => r.json()).then(d => { if(d.ok) location.reload(); });
+}
+
 function excluirTitulo(id) {
-    if(!confirm('Tem certeza que deseja EXCLUIR este registro?')) return;
+    if(!confirm('Tem certeza que deseja EXCLUIR este registro permanentemente?')) return;
     const fd = new FormData(); fd.append('id', id);
     fetch('<?php echo BASE_URL; ?>/admin/financeiro/excluir', {
         method: 'POST', body: fd
     }).then(r => r.json()).then(d => { if(d.ok) location.reload(); });
 }
 
-// --- AUTOCOMPLETE CLIENTE ---
 let timeoutBusca = null;
 function buscarClienteAPI(termo) {
     const lista = document.getElementById('lista_clientes');

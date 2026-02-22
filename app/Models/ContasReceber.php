@@ -5,9 +5,6 @@ use App\Core\Database;
 class ContasReceber {
     public function listar($empresaId, $filtros = []) {
         $db = Database::connect();
-        
-        // JOIN Direto: Contas Receber -> Clientes
-        // Isso garante que peguemos o telefone atualizado do cadastro
         $sql = "SELECT cr.*, c.telefone as cliente_whatsapp 
                 FROM contas_receber cr
                 LEFT JOIN clientes c ON cr.cliente_id = c.id

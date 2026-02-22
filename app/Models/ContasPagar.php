@@ -5,7 +5,6 @@ use App\Core\Database;
 class ContasPagar {
     public function listar($empresaId, $filtros = []) {
         $db = Database::connect();
-        
         $sql = "SELECT cp.*, f.telefone as fornecedor_telefone 
                 FROM contas_pagar cp
                 LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id
@@ -24,7 +23,7 @@ class ContasPagar {
             $params[] = $filtros['fim'];
         }
 
-        $sql .= " ORDER BY cp.data_vencimento ASC"; // Ordena pelo vencimento (urgência)
+        $sql .= " ORDER BY cp.data_vencimento ASC"; 
         
         $stmt = $db->prepare($sql);
         $stmt->execute($params);

@@ -57,13 +57,13 @@
                     <tr class="hover:bg-gray-50/80 transition group">
                         <td class="p-5">
                             <div class="flex flex-col">
-                                <span class="font-bold text-gray-800 text-sm"><?php echo $t['fornecedor_nome']; ?></span>
+                                <span class="font-bold <?php echo $t['status'] == 'cancelado' ? 'text-gray-400 line-through' : 'text-gray-800'; ?> text-sm"><?php echo $t['fornecedor_nome']; ?></span>
                                 <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider bg-gray-100 px-2 py-0.5 rounded w-fit mt-1">
                                     <?php echo $t['categoria'] ?? 'Geral'; ?>
                                 </span>
                             </div>
                         </td>
-                        <td class="p-5 font-black text-gray-800">R$ <?php echo number_format($t['valor'], 2, ',', '.'); ?></td>
+                        <td class="p-5 font-black <?php echo $t['status'] == 'cancelado' ? 'text-gray-400' : 'text-gray-800'; ?>">R$ <?php echo number_format($t['valor'], 2, ',', '.'); ?></td>
                         <td class="p-5">
                             <div class="flex flex-col">
                                 <span class="text-xs font-bold text-gray-600"><?php echo date('d/m/Y', strtotime($t['data_vencimento'])); ?></span>
@@ -73,6 +73,8 @@
                         <td class="p-5">
                             <?php if($t['status'] == 'pago'): ?>
                                 <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-green-100 text-green-700">PAGO</span>
+                            <?php elseif($t['status'] == 'cancelado'): ?>
+                                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-gray-200 text-gray-500">CANCELADO</span>
                             <?php else: ?>
                                 <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-red-100 text-red-600">PENDENTE</span>
                             <?php endif; ?>
@@ -90,6 +92,10 @@
                                 </button>
 
                                 <?php if($t['status'] == 'pendente'): ?>
+                                    <button onclick="cancelarTitulo(<?php echo $t['id']; ?>)" 
+                                            class="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 flex items-center justify-center transition" title="Cancelar Título">
+                                        <i class="fas fa-ban text-xs"></i>
+                                    </button>
                                     <button onclick="pagarTitulo(<?php echo $t['id']; ?>)" class="bg-gray-900 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold hover:bg-black transition shadow-lg shadow-gray-200 ml-2">
                                         DAR BAIXA
                                     </button>
@@ -118,7 +124,7 @@
             <div class="space-y-5">
                 <div class="relative">
                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Fornecedor</label>
-                    <input type="text" id="busca_fornecedor" name="fornecedor_nome" autocomplete="off"
+                    <input type="text" id="busca_fornecedor" name="fornecedor_nome" autocomplete="off" required
                            class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-red-500 focus:bg-white outline-none font-bold text-gray-700 transition"
                            placeholder="Digite para buscar..." onkeyup="buscarFornecedorAPI(this.value)">
                     <div id="lista_fornecedores" class="absolute w-full bg-white border border-gray-100 shadow-xl rounded-xl mt-1 hidden z-50 max-h-48 overflow-y-auto"></div>
@@ -142,26 +148,33 @@
 
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Vencimento</label>
-                        <input type="date" name="data_vencimento" id="input_vencimento" value="<?php echo date('Y-m-d'); ?>" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-red-500 outline-none font-bold text-gray-600">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Vencimento Início</label>
+                        <input type="date" name="data_vencimento" id="input_vencimento" required value="<?php echo date('Y-m-d'); ?>" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-red-500 outline-none font-bold text-gray-600">
                     </div>
                     <div>
                         <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Status</label>
                         <select name="status" id="input_status" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-red-500 outline-none font-bold text-gray-600">
                             <option value="pendente">A Pagar</option>
                             <option value="pago">Pago</option>
+                            <option value="cancelado">Cancelado</option>
                         </select>
                     </div>
                 </div>
                 
-                <div>
-                     <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Forma Pagto</label>
-                     <select name="forma_pagamento" id="input_forma" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-red-500 outline-none font-bold text-gray-600">
-                         <option value="dinheiro">Dinheiro</option>
-                         <option value="pix">Pix</option>
-                         <option value="boleto">Boleto</option>
-                         <option value="cartao">Cartão</option>
-                     </select>
+                <div class="grid grid-cols-2 gap-4">
+                     <div>
+                         <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Forma Pagto</label>
+                         <select name="forma_pagamento" id="input_forma" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-red-500 outline-none font-bold text-gray-600">
+                             <option value="dinheiro">Dinheiro</option>
+                             <option value="pix">Pix</option>
+                             <option value="boleto">Boleto</option>
+                             <option value="cartao">Cartão</option>
+                         </select>
+                    </div>
+                    <div id="box_parcelas">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase mb-1 ml-1">Qtd Parcelas/Meses</label>
+                        <input type="number" name="parcelas" id="input_parcelas" value="1" min="1" max="60" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-red-500 outline-none font-bold text-gray-600">
+                    </div>
                 </div>
 
                 <div>
@@ -179,24 +192,22 @@
 </div>
 
 <script>
-// --- FUNÇÕES DE INTERFACE ---
 function abrirModalForm(editar = false) {
     document.getElementById('modalForm').classList.remove('hidden');
     if(!editar) {
         document.getElementById('formTitulo').reset();
         document.getElementById('input_id').value = '';
         document.getElementById('modalTitulo').innerText = "NOVA DESPESA";
+        document.getElementById('box_parcelas').style.display = 'block'; // Mostra opções de parcelas em novas contas
     }
 }
 function fecharModalForm() { document.getElementById('modalForm').classList.add('hidden'); }
 
-// --- PREENCHER FORMULÁRIO PARA EDIÇÃO ---
 function editarTitulo(t) {
     document.getElementById('input_id').value = t.id;
     document.getElementById('input_fornecedor_id').value = t.fornecedor_id;
     document.getElementById('busca_fornecedor').value = t.fornecedor_nome;
     
-    // Formata Valor
     let valor = parseFloat(t.valor).toFixed(2).replace('.', ',');
     document.getElementById('input_valor').value = valor;
     
@@ -205,12 +216,12 @@ function editarTitulo(t) {
     document.getElementById('input_status').value = t.status;
     document.getElementById('input_forma').value = t.forma_pagamento;
     document.getElementById('input_obs').value = t.observacoes;
+    document.getElementById('box_parcelas').style.display = 'none'; // Esconde parcelamento na edição para evitar conflitos lógicos
 
     document.getElementById('modalTitulo').innerText = "EDITAR DESPESA";
     abrirModalForm(true);
 }
 
-// --- SALVAR (CRIA OU ATUALIZA) ---
 function salvarTitulo(e) {
     e.preventDefault();
     fetch('<?php echo BASE_URL; ?>/admin/contas-pagar/salvar', {
@@ -220,7 +231,6 @@ function salvarTitulo(e) {
     });
 }
 
-// --- AÇÕES ---
 function pagarTitulo(id) {
     if(!confirm('Confirmar pagamento desta despesa?')) return;
     const fd = new FormData(); fd.append('id', id);
@@ -229,15 +239,22 @@ function pagarTitulo(id) {
     }).then(r => r.json()).then(d => { if(d.ok) location.reload(); });
 }
 
+function cancelarTitulo(id) {
+    if(!confirm('Tem certeza que deseja cancelar esta cobrança?')) return;
+    const fd = new FormData(); fd.append('id', id);
+    fetch('<?php echo BASE_URL; ?>/admin/contas-pagar/cancelar', {
+        method: 'POST', body: fd
+    }).then(r => r.json()).then(d => { if(d.ok) location.reload(); });
+}
+
 function excluirTitulo(id) {
-    if(!confirm('Tem certeza que deseja EXCLUIR este registro?')) return;
+    if(!confirm('Tem certeza que deseja EXCLUIR este registro permanentemente?')) return;
     const fd = new FormData(); fd.append('id', id);
     fetch('<?php echo BASE_URL; ?>/admin/contas-pagar/excluir', {
         method: 'POST', body: fd
     }).then(r => r.json()).then(d => { if(d.ok) location.reload(); });
 }
 
-// --- AUTOCOMPLETE FORNECEDOR ---
 let timeoutBusca = null;
 function buscarFornecedorAPI(termo) {
     const lista = document.getElementById('lista_fornecedores');
